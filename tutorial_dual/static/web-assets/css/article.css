@@ -37,3 +37,5 @@ td,th { border:1px solid var(--line); padding:.45rem; text-align:left; }
 @media(max-width:900px) { .layout { grid-template-columns:1fr; gap:1rem; }.contents { position:static; max-height:none; border-bottom:1px solid var(--line); padding-bottom:1rem; }.contents p { display:inline-block; margin:.2rem .8rem .2rem 0; }.contents .toc-level-2 { padding-left:0; } }
 @media(max-width:600px) { body { font-size:17px; }.masthead { padding:2rem 1rem 1.5rem; }.layout { padding:1rem; }.operation-columns { grid-template-columns:1fr; }.explanation-body { padding:.2rem .7rem .8rem; }.interactive { margin:2rem 0; padding:0 0 1rem; } }
 @media print { .contents,.reading-tools,.notebook-frame,.skip { display:none; }.layout { display:block; }.masthead { padding:0; }.explanation { border:0; } }
+
+.notation-box { margin:1.5rem 0; padding:.3rem 1.2rem; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:5px; background:#f4f7f4; }

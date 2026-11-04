@@ -9,6 +9,9 @@
 #show table: it => block(breakable: false, it)
 #align(center)[#text(size: 23pt, weight: "bold")[Length Generalization in Transformers]]
 #v(1em)
+#text(size: 9pt, fill: luma(100))[
+  Green-tinted boxes contain the explanations that can be expanded in the HTML edition.
+]
 #outline(title: [Contents], depth: 2)
 #pagebreak()
 #include "tutorial_dual/manuscript.typ"

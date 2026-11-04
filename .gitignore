@@ -10,3 +10,6 @@ playwright-report/
 .tools/
 tmp/
 /draft_2.pdf
+
+# Local historical copies; never part of the current build
+/archive/

@@ -29,8 +29,9 @@ From the repository root:
 ./build_tutorial.sh preview   # prints a local URL and rebuilds on edits; Ctrl-C stops
 ```
 
-The build script uses the workspace-local tools downloaded for this prototype,
-then falls back to tools on PATH. Override them with `TYPST_BIN` and `TOLA_BIN`.
+The build script uses `TYPST_BIN` / `TOLA_BIN` overrides when set, then tools on
+PATH, then binaries under `.tools/` in this checkout or its parent directories.
+This also finds the workspace tools when this checkout is nested inside it.
 Verified with **Typst 0.15.1** and **Tola 0.8.1**. Tola embeds its own compiler;
 Typst CLI is only needed for the PDF. There are no external Typst package imports
 in this new version. Keep `tola.toml` and the `@tola` imports with Tola 0.8.x;
@@ -55,8 +56,8 @@ the walkthrough, block builder, repair exercise, token sandbox, and value predic
 The parent page hides the notebook's duplicate introduction and resizes its frame.
 The standalone notebook and source attribution remain linked below it.
 
-The PDF replaces this slot with a written exercise; it does not show an empty frame
-or HTML controls. The derivation and all detailed explanations remain in the PDF.
+The PDF omits this interaction slot. The derivation and all detailed explanations
+remain in the PDF.
 
 The prose uses positions 1 through n; the existing notebook uses zero-based labels.
 This difference is stated beside the embed. In the token sandbox, remove the last
