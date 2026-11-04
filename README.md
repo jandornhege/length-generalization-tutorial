@@ -37,3 +37,16 @@ The consolidation snapshot is in `archive/2026-11-04-before-consolidation/`:
 - `migration-record.json`: original checkout location, Git HEAD, change list and file hashes.
 
 The former `.tools/repository-export/checkout/` was moved here with its Git history and uncommitted changes. It is no longer a working location. Archives are kept locally and excluded from Git by default.
+
+## Personal GitHub Pages publication
+
+The public mirror is [jandornhege/length-generalization-tutorial](https://github.com/jandornhege/length-generalization-tutorial), with source on `main` and the generated blog on `gh-pages`. GitHub Pages publishes the root of `gh-pages`; the older companion workflow is not used for this blog.
+
+After committing your source changes, update the personal source mirror and publish from this working directory:
+
+```sh
+git push personal HEAD:main
+./scripts/publish-personal-blog.sh
+```
+
+The publisher builds with the correct repository URL prefix, then commits and pushes only the generated site. It requires your normal GitHub push credentials. The blog URL is https://jandornhege.github.io/length-generalization-tutorial/.
