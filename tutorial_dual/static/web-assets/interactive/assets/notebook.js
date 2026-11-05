@@ -444,14 +444,14 @@ function renderResults() {
 // Block builder: all choices are typed, generated names are unique, and moves
 // are committed only after checking every dependency in the resulting order.
 const operations = [
-  ["token", "Is this token…?", "yes/no"],
-  ["tokenCount", "Count a token", "number"],
-  ["count", "Count yes values", "number"],
-  ["compare", "Compare numbers", "yes/no"],
-  ["and", "Both are yes", "yes/no"],
-  ["or", "Either is yes", "yes/no"],
-  ["not", "Reverse yes/no", "yes/no"],
-  ["add", "Add numbers", "number"],
+  ["token", "Token predicate Qₐ", "yes/no"],
+  ["tokenCount", "Prefix count of Qₐ", "number"],
+  ["count", "Prefix count #P", "number"],
+  ["compare", "Count comparison", "yes/no"],
+  ["and", "Conjunction ∧", "yes/no"],
+  ["or", "Disjunction ∨ (derived)", "yes/no"],
+  ["not", "Negation ¬", "yes/no"],
+  ["add", "Addition +", "number"],
 ];
 function available(kind) {
   return (
@@ -464,7 +464,7 @@ function addBlock(kind) {
     return;
   }
   if (!available(kind)) {
-    say("First add a yes/no block, such as “Is this token…?”.", true);
+    say("First add a Boolean predicate, such as “Token predicate Qₐ”.", true);
     return;
   }
   const bools = nodes.filter((n) => TYPES[n.kind] === "bool").map((n) => n.id),
@@ -516,7 +516,7 @@ function renderBuilder() {
       nextId = 1;
       renderBuilder();
       schedule();
-      say("Add “Is this token…?”, then “Count yes values”, then “Compare numbers”.");
+      say("Add “Token predicate Qₐ”, then “Prefix count #P”, then “Count comparison”.");
     }),
     button("Load “contains a”", () => {
       nodes = clone(CONTAINS);
@@ -570,7 +570,7 @@ function renderBuilder() {
   for (const [kind, title, type] of operations) {
     const b = button("", () => addBlock(kind), "");
     b.dataset.operation = kind;
-    b.append(el("span", title), el("small", `Produces ${type}`));
+    b.append(el("span", title), el("small", type === "number" ? "Count vector" : "Boolean vector"));
     b.disabled = !available(kind) || nodes.length >= 24;
     b.draggable = !b.disabled;
     b.ondragstart = (e) => {
@@ -593,8 +593,8 @@ function renderBuilder() {
     card.ondragleave = () => card.classList.remove("drag-over");
     card.ondrop = (e) => drop(e, index);
     const header = el("div", undefined, "block-title"),
-      label = el("strong", `${index + 1}. ${n.id} `);
-    label.append(el("span", TYPES[n.kind] === "int" ? "number" : "yes/no", "type-tag"));
+      label = el("strong", `${n.id} · ${operations.find(([kind]) => kind === n.kind)[1]} `);
+    label.append(el("span", TYPES[n.kind] === "int" ? "count" : "Boolean", "type-tag"));
     header.append(label);
     const actions = el("div", undefined, "block-tools");
     const handle = el("span", "↕");
@@ -645,16 +645,16 @@ function renderBuilder() {
       });
     if (n.kind === "token" || n.kind === "tokenCount")
       fields.append(
-        field(n.kind === "token" ? "Token is" : "Count token", "token", ["a", "b", "(", ")"]),
+        field(n.kind === "token" ? "Qₐ: symbol a" : "#Qₐ: symbol a", "token", ["a", "b", "(", ")"]),
       );
     if (n.kind === "count" || n.kind === "not")
-      fields.append(field(n.kind === "count" ? "Count yes in" : "Reverse", "input", bools));
+      fields.append(field(n.kind === "count" ? "#P: predicate P" : "¬P: predicate P", "input", bools));
     if (["compare", "add", "and", "or"].includes(n.kind)) {
       const opts = ["compare", "add"].includes(n.kind) ? ints : bools;
       fields.append(field("Input", "left", opts));
       if (n.kind === "compare")
         fields.append(field("Comparison", "op", ["<", "<=", "==", ">=", ">"]));
-      else fields.append(el("span", { add: "plus", and: "and", or: "or" }[n.kind]));
+      else fields.append(el("span", { add: "+", and: "∧", or: "∨" }[n.kind]));
       fields.append(field("Input", "right", opts));
     }
     card.append(fields);
