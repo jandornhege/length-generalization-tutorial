@@ -69,7 +69,6 @@ function prepareFrame() {
     .experiment-heading{display:none}
     .code-actions{margin-top:16px}
     html[data-lab-mode=walk] .code-actions{display:none}
-    html[data-lab-mode=build] #values,html[data-lab-mode=build] #inspection,
     html[data-lab-mode=build] #result-heading{display:none}
     #mode-workspace>.toolbar{margin-bottom:16px}
     .result-header{margin-top:12px}

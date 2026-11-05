@@ -29,7 +29,7 @@
             #html.elem("section", attrs: (id: "playground", class: "lab-stage", "aria-label": "C-RASP playground"))[
               #html.elem("nav", attrs: (class: "lab-tabs", "aria-label": "Choose an interactive tool"))[
                 #html.elem("button", attrs: ("data-lab-mode": "walk", "aria-pressed": "true"))[01 · Walkthrough]
-                #html.elem("button", attrs: ("data-lab-mode": "build", "aria-pressed": "false"))[02 · Block builder]
+                #html.elem("button", attrs: ("data-lab-mode": "build", "aria-pressed": "false"))[02 · Program builder]
                 #html.elem("button", attrs: ("data-lab-mode": "editor", "aria-pressed": "false"))[03 · Text editor]
               ]
               #html.elem("iframe", attrs: (

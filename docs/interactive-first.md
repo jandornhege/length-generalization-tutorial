@@ -2,7 +2,7 @@
 
 Branch: `blog/interactive-first`.
 
-The HTML template puts three tools first: walkthrough, block builder, and text editor. The canonical manuscript remains the source of the optional background sections; the PDF content is unchanged. The repair, token-sandbox, and prediction modes are not exposed in this variation's embedded notebook.
+The HTML template puts three tools first: walkthrough, structured program builder, and text editor. The canonical manuscript remains the source of the optional background sections; the PDF content is unchanged. The repair, token-sandbox, and prediction modes are not exposed in this variation's embedded notebook.
 
 Run `./build_tutorial.sh preview` to view this branch locally. The local review server may also be running at http://127.0.0.1:8794/.
 
@@ -16,4 +16,4 @@ The walkthrough and builder run locally in JavaScript. The text editor loads its
 
 Publishing with `scripts/publish-personal-blog.sh` replaces the live blog. Do not use it merely to review this variation; use the local preview until publication is requested.
 
-The simplified presentation uses one tab row without a sidebar. Routine evaluator status, duplicate instructions, generated-code toggles, and share/download controls are hidden in the embedded view. Errors remain visible. The builder shows per-block values and the final decision without a second duplicate value table. The editor retains input, source, Run/Stop, execution status, and trace.
+The simplified presentation uses one tab row without a sidebar. Routine evaluator status, duplicate instructions, generated-code toggles, and share/download controls are hidden in the embedded view. Errors remain visible. The program builder presents inline C-RASP assignments and one value table below the program. An Add a line menu offers valid expressions; operand menus contain only earlier variables of the required type. Operation replacement preserves the result type, and deletion is disabled when later lines depend on the variable. The editor retains input, source, Run/Stop, execution status, and trace.

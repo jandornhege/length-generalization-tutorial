@@ -654,3 +654,22 @@ html[data-embed] .value-table caption {
     padding: 12px 8px;
   }
 }
+
+/* Structured source editor: inline operands, not visual block cards. */
+.structured-program{border:1px solid var(--line);border-radius:6px;background:#fff;overflow-x:auto;margin:16px 0}
+.program-line{display:flex;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid #edf0ec;min-width:max-content;font:16px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
+.line-number{color:#8b958e;width:1.5em;text-align:right;font-size:12px;flex:none}
+.program-statement{display:flex;align-items:center;gap:8px;flex:1}
+.program-statement .variable{color:#17635e;font-weight:650;min-width:5em}
+.inline-field{display:inline-flex!important;flex-direction:row!important;margin:0!important;gap:0!important}
+.inline-field select{font:inherit;min-width:0;max-width:260px;border:0;border-bottom:1px dashed #a6b8ac;border-radius:0;padding:4px 20px 4px 5px;background-color:#f4f7f3;color:#243c2e;cursor:pointer}
+.inline-field select:hover,.inline-field select:focus{background-color:#e3eee4}
+.operation-field select{color:#795522;background-color:#faf7ef}
+.remove-line{border:0!important;background:transparent!important;color:#6e7b73!important;padding:4px 8px!important;font-size:18px!important}
+.remove-line:disabled{opacity:.2}
+.add-line{display:flex!important;flex-direction:row!important;align-items:center;gap:12px;padding:14px 16px;font-size:13px}
+.add-line select{font:14px system-ui,sans-serif;max-width:300px}
+.program-toolbar{display:flex;margin:8px 0}
+.program-toolbar label{display:flex;align-items:center;gap:10px;font-size:13px}
+.program-toolbar select{padding:6px 10px}
+@media(max-width:600px){.program-line{font-size:13px;gap:6px;padding:7px 6px}.program-statement{gap:4px}.inline-field select{max-width:190px}.add-line{flex-wrap:wrap}}

@@ -162,3 +162,33 @@ export const A_BEFORE_B = [
   { id: "Witnesses", kind: "count", input: "Witness" },
   { id: "Accept", kind: "compare", left: "Witnesses", op: ">", right: "0" },
 ];
+
+// Construct an expression using only earlier, correctly typed operands. Replacing
+// a row preserves its result type so later references remain valid.
+export function structuredNode(nodes, index, kind, id) {
+  const earlier = nodes.slice(0, index);
+  const bools = earlier.filter(n => TYPES[n.kind] === 'bool').map(n => n.id);
+  const ints = earlier.filter(n => TYPES[n.kind] === 'int').map(n => n.id);
+  if (!Object.hasOwn(TYPES, kind)) throw new Error('Unknown operation.');
+  const old = nodes[index];
+  if (old && TYPES[old.kind] !== TYPES[kind]) throw new Error('Keep the result type of this line.');
+  let node = {id: old?.id || id, kind};
+  if (kind === 'token' || kind === 'tokenCount') node.token = 'a';
+  if (kind === 'count' && !bools.length) node = {id: node.id, kind: 'tokenCount', token: 'a'};
+  else if (kind === 'count' || kind === 'not') {
+    if (!bools.length) throw new Error('An earlier Boolean predicate is required.');
+    node.input = bools.at(-1);
+  }
+  if (['and', 'or'].includes(kind)) {
+    if (!bools.length) throw new Error('An earlier Boolean predicate is required.');
+    node.left = bools.at(-1); node.right = bools.at(-2) || bools.at(-1);
+  }
+  if (['add', 'subtract', 'compare'].includes(kind)) {
+    node.left = ints.at(-1) || '0'; node.right = '0';
+    if (kind === 'compare') node.op = '<=';
+  }
+  const candidate = nodes.map(n => ({...n}));
+  if (old) candidate[index] = node; else candidate.push(node);
+  validateProgram(candidate);
+  return node;
+}

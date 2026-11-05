@@ -9,6 +9,7 @@ import {
   compile,
   validateProgram,
   moveBlock,
+  structuredNode,
 } from "../static/web-assets/interactive/assets/notebook-model.js";
 import { evaluateBlocks } from "../static/web-assets/interactive/assets/notebook-engine.js";
 
@@ -67,4 +68,30 @@ test("general starters separate presence from order", () => {
   assert.equal(evaluateBlocks(A_BEFORE_B, [..."ab"], "Accept").accepted, true);
   assert.equal(evaluateBlocks(A_BEFORE_B, [..."ba"], "Accept").accepted, false);
   assert.equal(evaluateBlocks(A_BEFORE_B, [..."a()b"], "Accept").accepted, true);
+});
+
+
+test("structured expression choices preserve typing and earlier dependencies", () => {
+  const kinds = ['token','count','compare','and','or','not','add','subtract','constant','true'];
+  for (const program of [[], CONTAINS, DYCK]) {
+    for (let index = 0; index <= program.length; index++) {
+      for (const kind of kinds) {
+        let replacement;
+        try { replacement = structuredNode(program, index, kind, 'Fresh'); }
+        catch { continue; }
+        const candidate = structuredClone(program);
+        if (index === candidate.length) candidate.push(replacement);
+        else candidate[index] = replacement;
+        assert.doesNotThrow(() => compile(candidate));
+        assert.doesNotThrow(() => evaluateBlocks(candidate, ['a','b','a']));
+      }
+    }
+  }
+  assert.equal(structuredNode([], 0, 'count', 'C1').kind, 'tokenCount');
+  assert.throws(() => structuredNode([], 0, 'not', 'P1'), /earlier Boolean/);
+  assert.throws(() => structuredNode(CONTAINS, 0, 'constant'), /result type/);
+  const before = structuredClone(CONTAINS);
+  const replacement = structuredNode(CONTAINS, 2, 'not');
+  assert.equal(replacement.input, 'A1');
+  assert.deepEqual(CONTAINS, before);
 });
