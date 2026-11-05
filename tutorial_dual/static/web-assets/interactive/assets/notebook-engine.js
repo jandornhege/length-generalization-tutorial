@@ -35,8 +35,13 @@ export function evaluateBlocks(nodes, tokens, output) {
           return at(n.left, i) && at(n.right, i);
         case "or":
           return at(n.left, i) || at(n.right, i);
-        case "add": {
-          const sum = at(n.left, i) + at(n.right, i);
+        case "constant":
+          return 1;
+        case "true":
+          return true;
+        case "add":
+        case "subtract": {
+          const sum = n.kind === "add" ? at(n.left, i) + at(n.right, i) : at(n.left, i) - at(n.right, i);
           if (!Number.isSafeInteger(sum))
             throw new Error("This value exceeds the exact integer range of this learning editor.");
           return sum;

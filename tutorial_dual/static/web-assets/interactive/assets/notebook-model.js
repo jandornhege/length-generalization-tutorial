@@ -9,6 +9,9 @@ export const TYPES = {
   or: "bool",
   not: "bool",
   add: "int",
+  subtract: "int",
+  constant: "int",
+  true: "bool",
 };
 export const DYCK = [
   { id: "Opens", kind: "tokenCount", token: "(" },
@@ -26,7 +29,7 @@ export const CONTAINS = [
 ];
 export function references(node) {
   if (node.kind === "count" || node.kind === "not") return [node.input];
-  if (["compare", "and", "or", "add"].includes(node.kind))
+  if (["compare", "and", "or", "add", "subtract"].includes(node.kind))
     return [node.left, node.right].filter((x) => x !== "0");
   return [];
 }
@@ -47,7 +50,7 @@ export function validateProgram(nodes) {
     if (["token", "tokenCount"].includes(n.kind) && !["a", "b", "(", ")"].includes(n.token))
       throw new Error("Choose a supported token.");
     if (n.kind === "count" || n.kind === "not") need(n.input, "bool");
-    if (["compare", "add"].includes(n.kind)) {
+    if (["compare", "add", "subtract"].includes(n.kind)) {
       need(n.left, "int");
       need(n.right, "int");
     }
@@ -79,6 +82,12 @@ export function expression(n) {
       return `${n.left} || ${n.right}`;
     case "add":
       return `${n.left} + ${n.right}`;
+    case "subtract":
+      return `${n.left} - ${n.right}`;
+    case "constant":
+      return "1";
+    case "true":
+      return "(1 == 1)";
   }
 }
 export function compile(nodes, output) {

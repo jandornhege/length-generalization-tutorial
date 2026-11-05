@@ -446,11 +446,14 @@ function renderResults() {
 const operations = [
   ["token", "Token predicate Qₐ", "yes/no"],
   ["count", "Prefix count #P", "number"],
-  ["compare", "Count comparison", "yes/no"],
+  ["compare", "Count comparison ≤", "yes/no"],
   ["and", "Conjunction ∧", "yes/no"],
   ["or", "Disjunction ∨ (derived)", "yes/no"],
   ["not", "Negation ¬", "yes/no"],
   ["add", "Addition +", "number"],
+  ["subtract", "Subtraction −", "number"],
+  ["constant", "Count constant 1", "number"],
+  ["true", "Boolean constant ⊤", "yes/no"],
 ];
 function available(kind) {
   return (
@@ -478,7 +481,7 @@ function addBlock(kind) {
     n.left = bools.at(-1);
     n.right = bools.at(-2) || bools.at(-1);
   }
-  if (["compare", "add"].includes(kind)) {
+  if (["compare", "add", "subtract"].includes(kind)) {
     n.left = ints.at(-1) || "0";
     n.right = "0";
     if (kind === "compare") n.op = ">";
@@ -669,12 +672,12 @@ function renderBuilder() {
     }
     if (n.kind === "not")
       fields.append(field("¬P: predicate P", "input", bools));
-    if (["compare", "add", "and", "or"].includes(n.kind)) {
-      const opts = ["compare", "add"].includes(n.kind) ? ints : bools;
+    if (["compare", "add", "subtract", "and", "or"].includes(n.kind)) {
+      const opts = ["compare", "add", "subtract"].includes(n.kind) ? ints : bools;
       fields.append(field("Input", "left", opts));
       if (n.kind === "compare")
         fields.append(field("Comparison", "op", ["<", "<=", "==", ">=", ">"]));
-      else fields.append(el("span", { add: "+", and: "∧", or: "∨" }[n.kind]));
+      else fields.append(el("span", { add: "+", subtract: "−", and: "∧", or: "∨" }[n.kind]));
       fields.append(field("Input", "right", opts));
     }
     card.append(fields);
