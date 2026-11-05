@@ -445,7 +445,6 @@ function renderResults() {
 // are committed only after checking every dependency in the resulting order.
 const operations = [
   ["token", "Token predicate Qₐ", "yes/no"],
-  ["tokenCount", "Prefix count of Qₐ", "number"],
   ["count", "Prefix count #P", "number"],
   ["compare", "Count comparison", "yes/no"],
   ["and", "Conjunction ∧", "yes/no"],
@@ -455,7 +454,7 @@ const operations = [
 ];
 function available(kind) {
   return (
-    !["count", "and", "or", "not"].includes(kind) || nodes.some((n) => TYPES[n.kind] === "bool")
+    !["and", "or", "not"].includes(kind) || nodes.some((n) => TYPES[n.kind] === "bool")
   );
 }
 function addBlock(kind) {
@@ -471,7 +470,10 @@ function addBlock(kind) {
     ints = nodes.filter((n) => TYPES[n.kind] === "int").map((n) => n.id);
   const n = { id: `A${nextId++}`, kind };
   if (["token", "tokenCount"].includes(kind)) n.token = tokens.includes("a") ? "a" : "(";
-  if (["count", "not"].includes(kind)) n.input = bools.at(-1);
+  if (kind === "count" && !bools.length) {
+    n.kind = "tokenCount";
+    n.token = tokens.includes("a") ? "a" : "(";
+  } else if (["count", "not"].includes(kind)) n.input = bools.at(-1);
   if (["and", "or"].includes(kind)) {
     n.left = bools.at(-1);
     n.right = bools.at(-2) || bools.at(-1);
@@ -593,7 +595,7 @@ function renderBuilder() {
     card.ondragleave = () => card.classList.remove("drag-over");
     card.ondrop = (e) => drop(e, index);
     const header = el("div", undefined, "block-title"),
-      label = el("strong", `${n.id} · ${operations.find(([kind]) => kind === n.kind)[1]} `);
+      label = el("strong", `${n.id} · ${operations.find(([kind]) => kind === (n.kind === "tokenCount" ? "count" : n.kind))[1]} `);
     label.append(el("span", TYPES[n.kind] === "int" ? "count" : "Boolean", "type-tag"));
     header.append(label);
     const actions = el("div", undefined, "block-tools");
@@ -643,12 +645,30 @@ function renderBuilder() {
         n[key] = v;
         schedule();
       });
-    if (n.kind === "token" || n.kind === "tokenCount")
-      fields.append(
-        field(n.kind === "token" ? "Qₐ: symbol a" : "#Qₐ: symbol a", "token", ["a", "b", "(", ")"]),
-      );
-    if (n.kind === "count" || n.kind === "not")
-      fields.append(field(n.kind === "count" ? "#P: predicate P" : "¬P: predicate P", "input", bools));
+    if (n.kind === "token")
+      fields.append(field("Qₐ: symbol a", "token", ["a", "b", "(", ")"]));
+    if (n.kind === "tokenCount" || n.kind === "count") {
+      const predicates = [
+        ...["a", "b", "(", ")"].map(token => [`token:${token}`, `Q(${token})`]),
+        ...bools.map(id => [`predicate:${id}`, id]),
+      ];
+      const selected = n.kind === "tokenCount" ? `token:${n.token}` : `predicate:${n.input}`;
+      fields.append(choice("#P: predicate P", predicates, selected, value => {
+        if (value.startsWith("token:")) {
+          n.kind = "tokenCount";
+          n.token = value.slice(6);
+          delete n.input;
+        } else {
+          n.kind = "count";
+          n.input = value.slice(10);
+          delete n.token;
+        }
+        renderBuilder();
+        schedule();
+      }));
+    }
+    if (n.kind === "not")
+      fields.append(field("¬P: predicate P", "input", bools));
     if (["compare", "add", "and", "or"].includes(n.kind)) {
       const opts = ["compare", "add"].includes(n.kind) ? ints : bools;
       fields.append(field("Input", "left", opts));
