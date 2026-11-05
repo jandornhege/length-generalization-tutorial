@@ -448,7 +448,7 @@ const operations = [
   ["count", "Prefix count #P", "number"],
   ["compare", "Count comparison ≤", "yes/no"],
   ["and", "Conjunction ∧", "yes/no"],
-  ["or", "Disjunction ∨ (derived)", "yes/no"],
+  ["or", "Disjunction ∨", "yes/no"],
   ["not", "Negation ¬", "yes/no"],
   ["add", "Addition +", "number"],
   ["subtract", "Subtraction −", "number"],
