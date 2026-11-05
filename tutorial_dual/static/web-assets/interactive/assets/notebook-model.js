@@ -192,3 +192,19 @@ export function structuredNode(nodes, index, kind, id) {
   validateProgram(candidate);
   return node;
 }
+
+export function canonicalNames(nodes, output = '') {
+  let predicates = 0, counts = 0;
+  const names = new Map(nodes.map(n => [n.id,
+    TYPES[n.kind] === 'bool' ? `P${++predicates}` : `C_${++counts}`]));
+  return {
+    nodes: nodes.map(n => {
+      const renamed = {...n, id: names.get(n.id)};
+      for (const key of ['input', 'left', 'right']) {
+        if (Object.hasOwn(n, key) && names.has(n[key])) renamed[key] = names.get(n[key]);
+      }
+      return renamed;
+    }),
+    output: names.get(output) || '',
+  };
+}

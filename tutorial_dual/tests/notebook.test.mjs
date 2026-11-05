@@ -10,6 +10,7 @@ import {
   validateProgram,
   moveBlock,
   structuredNode,
+  canonicalNames,
 } from "../static/web-assets/interactive/assets/notebook-model.js";
 import { evaluateBlocks } from "../static/web-assets/interactive/assets/notebook-engine.js";
 
@@ -94,4 +95,18 @@ test("structured expression choices preserve typing and earlier dependencies", (
   const replacement = structuredNode(CONTAINS, 2, 'not');
   assert.equal(replacement.input, 'A1');
   assert.deepEqual(CONTAINS, before);
+});
+
+
+test("predicate and count names have separate numbering and preserve evaluation", () => {
+  const renamed = canonicalNames(DYCK, 'Accept');
+  assert.deepEqual(renamed.nodes.map(n => n.id), ['C_1','C_2','P1','C_3','P2','P3','P4']);
+  assert.equal(renamed.output, 'P4');
+  for (const input of ['()(())','())(']) {
+    const original = evaluateBlocks(DYCK, [...input], 'Accept');
+    const result = evaluateBlocks(renamed.nodes, [...input], renamed.output);
+    assert.deepEqual(result.rows.map(r => r.values), original.rows.map(r => r.values));
+  }
+  assert.match(compile(renamed.nodes, renamed.output), /C_3 = # P1/);
+  assert.deepEqual(canonicalNames(renamed.nodes, renamed.output), renamed);
 });

@@ -10,6 +10,7 @@ import {
   moveBlock,
   references,
   structuredNode,
+  canonicalNames,
 } from "./notebook-model.js";
 import { evaluateBlocks } from "./notebook-engine.js";
 const $ = (id) => document.getElementById(id);
@@ -501,6 +502,7 @@ function drop(e, to) {
   drag = null;
 }
 function renderBuilder() {
+  ({nodes, output} = canonicalNames(nodes, output));
   const area = $("mode-workspace");
   area.replaceChildren();
   const tools = el('div', undefined, 'program-toolbar');
