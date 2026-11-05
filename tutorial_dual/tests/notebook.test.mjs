@@ -89,7 +89,7 @@ test("structured expression choices preserve typing and earlier dependencies", (
     }
   }
   assert.equal(structuredNode([], 0, 'count', 'C1').kind, 'tokenCount');
-  assert.throws(() => structuredNode([], 0, 'not', 'P1'), /earlier Boolean/);
+  assert.equal(structuredNode([], 0, 'not', 'P1').input, 'token:a');
   assert.throws(() => structuredNode(CONTAINS, 0, 'constant'), /result type/);
   const before = structuredClone(CONTAINS);
   const replacement = structuredNode(CONTAINS, 2, 'not');
@@ -109,4 +109,52 @@ test("predicate and count names have separate numbering and preserve evaluation"
   }
   assert.match(compile(renamed.nodes, renamed.output), /C_3 = # P1/);
   assert.deepEqual(canonicalNames(renamed.nodes, renamed.output), renamed);
+});
+
+
+test("custom alphabets support arbitrary symbols in predicates and prefix counts", () => {
+  const alphabet = ['open', 'close', 'x'];
+  const nodes = [
+    {id:'P1',kind:'token',token:'open'},
+    {id:'C_1',kind:'count',input:'P1'},
+    {id:'P2',kind:'compare',left:'C_1',op:'>',right:'0'},
+  ];
+  assert.deepEqual(evaluateBlocks(nodes, ['open','close','open'], 'P2', alphabet).rows[1].values, [1,1,2]);
+  assert.match(compile(nodes, 'P2', alphabet), /P1 = "open"/);
+  assert.equal(structuredNode([], 0, 'count', 'C_1', alphabet).token, 'open');
+  assert.throws(() => evaluateBlocks(nodes, ['a'], 'P2', alphabet), /selected alphabet/);
+  assert.throws(() => compile(nodes, 'P2', ['x']), /supported token/);
+  assert.throws(() => structuredNode([], 0, 'count', 'C_1', []), /distinct symbols/);
+  assert.throws(() => structuredNode([], 0, 'count', 'C_1', ['x','x']), /distinct symbols/);
+});
+
+
+test("token indicators work directly in Boolean operands and respect the alphabet", () => {
+  const nodes = [
+    {id:'P1',kind:'or',left:'token:a',right:'token:b'},
+    {id:'P2',kind:'and',left:'P1',right:'token:a'},
+    {id:'P3',kind:'not',input:'token:b'},
+  ];
+  assert.deepEqual(evaluateBlocks(nodes, [...'aba'], 'P3').rows.map(r => r.values),
+    [[true,true,true],[true,false,true],[true,false,true],[true,false,true]]);
+  assert.match(compile(nodes, 'P3'), /P1 = "a" \|\| "b"/);
+  assert.match(compile(nodes, 'P3'), /P3 = ! "b"/);
+  assert.throws(() => compile(nodes, 'P3', ['a']), /earlier/);
+  assert.throws(() => compile([{id:'C_1',kind:'add',left:'token:a',right:'0'}]), /earlier/);
+  for (const kind of ['and','or','not'])
+    assert.doesNotThrow(() => compile([structuredNode([], 0, kind, 'P1')]));
+});
+
+test("prefix counts distinguish predicates at i from predicates at j", () => {
+  const nodes = [
+    {id:'P1',kind:'token',token:'a'},
+    {id:'C_1',kind:'count',input:'P1',position:'j'},
+    {id:'C_2',kind:'count',input:'P1',position:'i'},
+    {id:'C_3',kind:'tokenCount',token:'a',position:'i'},
+    {id:'C_4',kind:'tokenCount',token:'a',position:'j'},
+  ];
+  assert.deepEqual(evaluateBlocks(nodes, [...'aba'], 'P1').rows.slice(1,5).map(r => r.values),
+    [[1,1,2],[1,0,3],[1,0,3],[1,1,2]]);
+  assert.match(compile(nodes, 'P1'), /C_2 = \(# \(1 == 1\)\) if P1 else 0/);
+  assert.throws(() => compile([{...nodes[1], input:'token:a',position:'k'}]), /position/);
 });

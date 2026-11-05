@@ -1,3 +1,11 @@
+export const DEFAULT_ALPHABET = ['a', 'b', '(', ')'];
+export function validateAlphabet(alphabet) {
+  if (!Array.isArray(alphabet) || !alphabet.length || alphabet.length > 16 ||
+      new Set(alphabet).size !== alphabet.length ||
+      alphabet.some(t => typeof t !== 'string' || !t.length || t.length > 32 || /\s/.test(t)))
+    throw new Error('Use 1–16 distinct symbols, separated by spaces (up to 32 characters each).');
+  return alphabet;
+}
 // A small typed subset of C-RASP for the visual editor. This compiles syntax;
 // all vector evaluation is performed by the original Python interpreter.
 export const TYPES = {
@@ -27,17 +35,22 @@ export const CONTAINS = [
   { id: "A2", kind: "count", input: "A1" },
   { id: "A3", kind: "compare", left: "A2", op: ">", right: "0" },
 ];
+export const isTokenOperand = value => typeof value === "string" && value.startsWith("token:");
+const operandSource = value => isTokenOperand(value) ? JSON.stringify(value.slice(6)) : value;
+
 export function references(node) {
-  if (node.kind === "count" || node.kind === "not") return [node.input];
+  if (node.kind === "count" || node.kind === "not") return isTokenOperand(node.input) ? [] : [node.input];
   if (["compare", "and", "or", "add", "subtract"].includes(node.kind))
-    return [node.left, node.right].filter((x) => x !== "0");
+    return [node.left, node.right].filter((x) => x !== "0" && !isTokenOperand(x));
   return [];
 }
-export function validateProgram(nodes) {
+export function validateProgram(nodes, alphabet = DEFAULT_ALPHABET) {
+  validateAlphabet(alphabet);
   if (nodes.length > 24) throw new Error("This learning editor supports up to 24 blocks.");
   const seen = new Map();
   const need = (id, type) => {
     if (id === "0" && type === "int") return;
+    if (type === "bool" && isTokenOperand(id) && alphabet.includes(id.slice(6))) return;
     if (seen.get(id) !== type)
       throw new Error(
         `Choose an earlier ${type === "bool" ? "yes/no" : "number"} variable for ${id}.`,
@@ -47,8 +60,10 @@ export function validateProgram(nodes) {
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(n.id) || n.id === "Result" || seen.has(n.id))
       throw new Error("Variable names must be unique and valid.");
     if (!Object.hasOwn(TYPES, n.kind)) throw new Error("Unknown block.");
-    if (["token", "tokenCount"].includes(n.kind) && !["a", "b", "(", ")"].includes(n.token))
+    if (["token", "tokenCount"].includes(n.kind) && !alphabet.includes(n.token))
       throw new Error("Choose a supported token.");
+    if (["count", "tokenCount"].includes(n.kind) && n.position !== undefined && !["i", "j"].includes(n.position))
+      throw new Error("Choose position i or j.");
     if (n.kind === "count" || n.kind === "not") need(n.input, "bool");
     if (["compare", "add", "subtract"].includes(n.kind)) {
       need(n.left, "int");
@@ -69,17 +84,17 @@ export function expression(n) {
     case "token":
       return JSON.stringify(n.token);
     case "tokenCount":
-      return `# ${JSON.stringify(n.token)}`;
+      return n.position === "i" ? `(# (1 == 1)) if ${JSON.stringify(n.token)} else 0` : `# ${JSON.stringify(n.token)}`;
     case "count":
-      return `# ${n.input}`;
+      return n.position === "i" ? `(# (1 == 1)) if ${operandSource(n.input)} else 0` : `# ${operandSource(n.input)}`;
     case "not":
-      return `! ${n.input}`;
+      return `! ${operandSource(n.input)}`;
     case "compare":
       return `${n.left} ${n.op} ${n.right}`;
     case "and":
-      return `${n.left} && ${n.right}`;
+      return `${operandSource(n.left)} && ${operandSource(n.right)}`;
     case "or":
-      return `${n.left} || ${n.right}`;
+      return `${operandSource(n.left)} || ${operandSource(n.right)}`;
     case "add":
       return `${n.left} + ${n.right}`;
     case "subtract":
@@ -90,8 +105,8 @@ export function expression(n) {
       return "(1 == 1)";
   }
 }
-export function compile(nodes, output) {
-  validateProgram(nodes);
+export function compile(nodes, output, alphabet = DEFAULT_ALPHABET) {
+  validateProgram(nodes, alphabet);
   if (output && !nodes.some((n) => n.id === output && TYPES[n.kind] === "bool"))
     throw new Error("The decision must be a yes/no variable.");
   // The bridge expects a Boolean final row. With no decision selected, Result
@@ -101,11 +116,11 @@ export function compile(nodes, output) {
     `Result = ${output || "(0 == 0)"}`,
   ].join("\n");
 }
-export function moveBlock(nodes, from, to) {
+export function moveBlock(nodes, from, to, alphabet = DEFAULT_ALPHABET) {
   const result = structuredClone(nodes),
     [node] = result.splice(from, 1);
   result.splice(to, 0, node);
-  validateProgram(result);
+  validateProgram(result, alphabet);
   return result;
 }
 export const QUESTIONS = [
@@ -165,7 +180,8 @@ export const A_BEFORE_B = [
 
 // Construct an expression using only earlier, correctly typed operands. Replacing
 // a row preserves its result type so later references remain valid.
-export function structuredNode(nodes, index, kind, id) {
+export function structuredNode(nodes, index, kind, id, alphabet = DEFAULT_ALPHABET) {
+  validateAlphabet(alphabet);
   const earlier = nodes.slice(0, index);
   const bools = earlier.filter(n => TYPES[n.kind] === 'bool').map(n => n.id);
   const ints = earlier.filter(n => TYPES[n.kind] === 'int').map(n => n.id);
@@ -173,15 +189,14 @@ export function structuredNode(nodes, index, kind, id) {
   const old = nodes[index];
   if (old && TYPES[old.kind] !== TYPES[kind]) throw new Error('Keep the result type of this line.');
   let node = {id: old?.id || id, kind};
-  if (kind === 'token' || kind === 'tokenCount') node.token = 'a';
-  if (kind === 'count' && !bools.length) node = {id: node.id, kind: 'tokenCount', token: 'a'};
+  if (kind === 'token' || kind === 'tokenCount') node.token = alphabet[0];
+  if (kind === 'count' && !bools.length) node = {id: node.id, kind: 'tokenCount', token: alphabet[0]};
   else if (kind === 'count' || kind === 'not') {
-    if (!bools.length) throw new Error('An earlier Boolean predicate is required.');
-    node.input = bools.at(-1);
+    node.input = bools.at(-1) || `token:${alphabet[0]}`;
   }
   if (['and', 'or'].includes(kind)) {
-    if (!bools.length) throw new Error('An earlier Boolean predicate is required.');
-    node.left = bools.at(-1); node.right = bools.at(-2) || bools.at(-1);
+    node.left = bools.at(-1) || `token:${alphabet[0]}`;
+    node.right = bools.at(-2) || bools.at(-1) || `token:${alphabet[1] || alphabet[0]}`;
   }
   if (['add', 'subtract', 'compare'].includes(kind)) {
     node.left = ints.at(-1) || '0'; node.right = '0';
@@ -189,7 +204,7 @@ export function structuredNode(nodes, index, kind, id) {
   }
   const candidate = nodes.map(n => ({...n}));
   if (old) candidate[index] = node; else candidate.push(node);
-  validateProgram(candidate);
+  validateProgram(candidate, alphabet);
   return node;
 }
 

@@ -667,9 +667,41 @@ html[data-embed] .value-table caption {
 .operation-field select{color:#795522;background-color:#faf7ef}
 .remove-line{border:0!important;background:transparent!important;color:#6e7b73!important;padding:4px 8px!important;font-size:18px!important}
 .remove-line:disabled{opacity:.2}
-.add-line{display:flex!important;flex-direction:row!important;align-items:center;gap:12px;padding:14px 16px;font-size:13px}
-.add-line select{font:14px system-ui,sans-serif;max-width:300px}
 .program-toolbar{display:flex;margin:8px 0}
 .program-toolbar label{display:flex;align-items:center;gap:10px;font-size:13px}
 .program-toolbar select{padding:6px 10px}
-@media(max-width:600px){.program-line{font-size:13px;gap:6px;padding:7px 6px}.program-statement{gap:4px}.inline-field select{max-width:190px}.add-line{flex-wrap:wrap}}
+@media(max-width:600px){.program-line{font-size:13px;gap:6px;padding:7px 6px}.program-statement{gap:4px}.inline-field select{max-width:190px}}
+
+.add-expression{border:0;margin:0;background:#fff;border-radius:0}
+.add-expression>summary{list-style:none;background:transparent;padding:12px 16px;color:#17635e;font:500 13px/1.5 system-ui,sans-serif;cursor:pointer;border:0}
+.add-expression>summary::-webkit-details-marker{display:none}
+.add-expression>summary:hover,.add-expression[open]>summary{background:#f3f7f3}
+.add-expression>summary[aria-disabled=true]{color:#8b958e;cursor:default}
+.expression-picker{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:6px 16px 16px;background:#f3f7f3}
+.expression-group-title{font:600 10px/1.5 system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#6b7c70;margin:5px 0 8px}
+.expression-option{display:flex!important;align-items:center;justify-content:space-between;gap:12px;width:100%;margin:0;padding:9px 10px!important;min-height:0;border:0!important;border-radius:4px!important;background:transparent!important;text-align:left;color:#273b30!important}
+.expression-option:hover,.expression-option:focus-visible{background:#e1ece2!important}
+.expression-symbol{font:15px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;color:#17635e;white-space:nowrap}
+.expression-name{font:12px/1.4 system-ui,sans-serif;color:#617166}
+@media(max-width:550px){.expression-picker{grid-template-columns:1fr;gap:8px}.expression-option{padding:10px!important}}
+
+.token-indicator{display:inline-flex;align-items:baseline;gap:0}
+.token-indicator .token-subscript{position:relative;top:.35em;margin-left:-3px!important;margin-right:3px!important}
+.token-subscript select{font-size:.75em;padding:2px 14px 2px 2px;max-width:55px}
+.typeset-predicate{position:relative}
+.typeset-predicate>select{color:transparent!important}
+.typeset-predicate>select option{color:#243c2e}
+.predicate-display{position:absolute;left:5px;top:50%;transform:translateY(-50%);pointer-events:none;color:#243c2e;white-space:nowrap}
+.predicate-display sub{font-size:.75em;vertical-align:sub;line-height:0}
+
+/* Size inline controls to the chosen symbol, not the longest menu option. */
+.program-statement{gap:.35em}
+.program-statement .variable{min-width:0}
+.inline-field select{field-sizing:content;width:auto}
+.token-indicator .operation-field select{appearance:none;width:1.35em;max-width:none;padding:4px 2px;text-align:center}
+.token-indicator .token-subscript{margin-left:0!important;margin-right:0!important}
+.token-indicator .token-subscript select{appearance:none;width:1.25em;max-width:none;padding:2px 1px;text-align:center}
+
+.alphabet-settings{display:flex;align-items:end;gap:10px;margin:0 0 16px}.alphabet-settings label{display:flex;align-items:center;gap:10px;font:13px system-ui,sans-serif}.alphabet-settings input{max-width:340px;padding:7px 10px;font:15px ui-monospace,monospace}.alphabet-settings button{padding:7px 12px}@media(max-width:550px){.alphabet-settings label{flex-direction:column;align-items:start}.alphabet-settings input{width:100%;min-width:0}.alphabet-settings label{min-width:0}}
+
+.token-indicator .token-subscript select{width:auto;min-width:1.25em;field-sizing:content}

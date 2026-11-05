@@ -1,5 +1,8 @@
 import {
   TYPES,
+  isTokenOperand,
+  DEFAULT_ALPHABET,
+  validateAlphabet,
   DYCK,
   CONTAINS,
   BOTH_SYMBOLS,
@@ -80,6 +83,7 @@ const cases = [
   { tokens: "(()", want: false, label: "Unclosed input" },
   { tokens: ")(", want: false, label: "Starts with a close" },
 ];
+let builderAlphabet = [...DEFAULT_ALPHABET];
 let mode = "walk",
   tokens = [..."()(())"],
   step = 0,
@@ -121,6 +125,10 @@ function choice(label, options, value, onChange) {
   wrap.append(select);
   return wrap;
 }
+function displayName(name) {
+  return name.replace(/^([PC])_?(\d+)$/, (_, symbol, index) =>
+    symbol + [...index].map(digit => '₀₁₂₃₄₅₆₇₈₉'[Number(digit)]).join(''));
+}
 function fmt(value) {
   return typeof value === "boolean" ? (value ? "yes" : "no") : String(value);
 }
@@ -137,7 +145,7 @@ function currentOutput() {
   return mode === "build" ? output : "Accept";
 }
 function source() {
-  return compile(currentNodes(), currentOutput());
+  return compile(currentNodes(), currentOutput(), mode === "build" ? builderAlphabet : DEFAULT_ALPHABET);
 }
 function rowValue(name, col) {
   return currentTrace?.rows.find((r) => r.name === name)?.values[col];
@@ -152,7 +160,7 @@ function schedule() {
   $("source-code").textContent = source();
   if (mode === "tokens") $("mode-workspace").replaceChildren();
   try {
-    currentTrace = evaluateBlocks(currentNodes(), [...tokens], currentOutput());
+    currentTrace = evaluateBlocks(currentNodes(), [...tokens], currentOutput(), mode === "build" ? builderAlphabet : DEFAULT_ALPHABET);
     $("results").setAttribute("aria-busy", "false");
     $("runtime-status").textContent = "Live values · evaluated locally · no network needed";
     renderResults();
@@ -167,6 +175,7 @@ function schedule() {
 function setMode(id) {
   mode = id;
   tokens = [...(id === "build" ? "abba" : id === "repair" ? cases[caseIndex].tokens : "()(())")];
+  if (id === "build") tokens = tokens.map(t => builderAlphabet.includes(t) ? t : builderAlphabet[0]);
   focus = Math.min(3, tokens.length - 1);
   const config = MODES.find((m) => m.id === mode);
   $("mode-kicker").textContent = config.short;
@@ -200,6 +209,7 @@ for (const m of MODES) {
 $("reset-design").onclick = () => {
   if (mode === "walk") step = 0;
   if (mode === "build") {
+    builderAlphabet = [...DEFAULT_ALPHABET];
     nodes = clone(CONTAINS);
     output = "A3";
     nextId = 4;
@@ -221,6 +231,41 @@ function renderInput() {
     el("h3", "Input sequence"),
     el("p", `${tokens.length} tokens · positions 0–${tokens.length - 1}`, "small"),
   );
+  if (mode === 'build') {
+    const settings = el('form', undefined, 'alphabet-settings');
+    const label = el('label', 'Alphabet Σ');
+    const input = el('input');
+    input.type = 'text'; input.value = builderAlphabet.join(' ');
+    input.setAttribute('aria-label', 'Alphabet symbols separated by spaces');
+    input.title = 'Separate symbols with spaces, for example: a b c';
+    input.required = true;
+    label.append(input);
+    const apply = el('button', 'Apply', 'secondary'); apply.type = 'submit';
+    settings.append(label, apply);
+    settings.onsubmit = event => {
+      event.preventDefault();
+      const next = input.value.trim().split(/\s+/).filter(Boolean);
+      try { validateAlphabet(next); } catch (error) {say(error.message, true); return;}
+      const remap = token => next.includes(token) ? token : next[builderAlphabet.indexOf(token)] || next[0];
+      let changed = tokens.some(t => !next.includes(t)) || nodes.some(n => n.token && !next.includes(n.token));
+      tokens = tokens.map(remap);
+      nodes = nodes.map(n => {
+        const updated = {...n};
+        if (n.token) updated.token = remap(n.token);
+        for (const key of ['input', 'left', 'right'])
+          if (isTokenOperand(n[key])) {
+            const token = remap(n[key].slice(6));
+            if (token !== n[key].slice(6)) changed = true;
+            updated[key] = `token:${token}`;
+          }
+        return updated;
+      });
+      builderAlphabet = next;
+      renderInput(); renderBuilder(); schedule();
+      say(changed ? 'Symbols removed from the alphabet were replaced in the input and program.' : '');
+    };
+    area.append(settings);
+  }
   box.append(head);
   const strip = el("div", undefined, "token-buttons");
   strip.id = "input-tokens";
@@ -236,7 +281,7 @@ function renderInput() {
           schedule();
           say(`Flipped position ${i}. Earlier prefix values stay unchanged.`);
         } else if (mode === "build") {
-          tokens[i] = t === "a" ? "b" : t === "b" ? "a" : t === "(" ? ")" : "(";
+          tokens[i] = builderAlphabet[(builderAlphabet.indexOf(t) + 1) % builderAlphabet.length];
           renderInput();
           schedule();
         } else {
@@ -265,7 +310,7 @@ function renderInput() {
     mode === "tokens"
       ? "Click any token to flip it. The numbers below each token are Opens / Closes."
       : mode === "build"
-        ? "Click a token to flip a ↔ b or ( ↔ ). Try the same program on different inputs."
+        ? "Click a token to cycle through the alphabet."
         : mode === "predict"
           ? "The outlined box is the queried position. Muted tokens lie outside its prefix."
           : "Select a token to inspect the prefix ending there.";
@@ -278,7 +323,7 @@ function renderInput() {
     );
   }
   if (mode === "tokens" || mode === "build") {
-    const alphabet = mode === "tokens" ? ["(", ")"] : ["a", "b", "(", ")"];
+    const alphabet = mode === "tokens" ? ["(", ")"] : builderAlphabet;
     for (const t of alphabet) {
       const b = button(`Add ${t}`, () => {
         tokens.push(t);
@@ -351,7 +396,7 @@ function renderTable(rows) {
     const tr = body.insertRow();
     tr.dataset.variable = row.name;
     if (mode === "walk" && row.name === DYCK[step].id) tr.className = "focus-row";
-    const label = el("th", row.name);
+    const label = el("th", displayName(row.name));
     label.scope = "row";
     tr.append(label);
     row.values.forEach((v, i) => {
@@ -513,41 +558,52 @@ function renderBuilder() {
     if (!value) return;
     nodes = clone({contains: CONTAINS, dyck: DYCK, both: BOTH_SYMBOLS, before: A_BEFORE_B, empty: []}[value]);
     output = nodes.filter(n => TYPES[n.kind] === 'bool').at(-1)?.id || '';
-    tokens = [...(value === 'dyck' ? '()(())' : 'abba')];
+    builderAlphabet = value === 'empty' ? builderAlphabet : value === 'dyck' ? ['(', ')'] : ['a', 'b'];
+    tokens = value === 'empty' ? [builderAlphabet[0]] : [...(value === 'dyck' ? '()(())' : 'abba')];
     renderInput(); renderBuilder(); schedule();
   }));
   area.append(tools);
   const program = el('div', undefined, 'structured-program');
   program.setAttribute('aria-label', 'Structured C-RASP program');
   const optionsFor = index => operations.filter(([kind]) => {
-    try { structuredNode(nodes, index, kind, 'NewLine'); return true; } catch { return false; }
+    try { structuredNode(nodes, index, kind, 'NewLine', builderAlphabet); return true; } catch { return false; }
   }).map(([kind, name]) => [kind, name]);
   nodes.forEach((n, index) => {
     const line = el('div', undefined, 'program-line');
     line.dataset.block = n.id;
     line.append(el('span', String(index + 1), 'line-number'));
     const statement = el('div', undefined, 'program-statement');
-    statement.append(el('span', `${n.id}(i)`, 'variable'), el('span', ':=', 'assignment'));
+    statement.append(el('span', `${displayName(n.id)}(i)`, 'variable'), el('span', ':=', 'assignment'));
     // The expression template selector doubles as the operator: no separate cards.
     const notation = {token: 'Q', count: '#[j ≤ i]', tokenCount: '#[j ≤ i]',
       compare: 'Compare', and: '∧', or: '∨', not: '¬', add: '+', subtract: '−', constant: '1', true: '⊤'};
     const currentKind = n.kind === 'tokenCount' ? 'count' : n.kind;
     const operator = choice(`Operation for ${n.id}`, optionsFor(index).map(([kind, name]) =>
       [kind, kind === currentKind ? notation[n.kind] : name]), currentKind, kind => {
-        nodes[index] = structuredNode(nodes, index, kind, n.id);
+        nodes[index] = structuredNode(nodes, index, kind, n.id, builderAlphabet);
         renderBuilder(); schedule();
       });
     operator.className = 'inline-field operation-field';
     operator.querySelector('select').setAttribute('aria-label', `Operation for ${n.id}`);
     operator.firstChild.remove();
     const earlier = nodes.slice(0, index);
-    const bools = earlier.filter(x => TYPES[x.kind] === 'bool').map(x => [x.id, `${x.id}(i)`]);
-    const ints = [['0', '0'], ...earlier.filter(x => TYPES[x.kind] === 'int').map(x => [x.id, `${x.id}(i)`])];
+    const bools = [
+      ...earlier.filter(x => TYPES[x.kind] === 'bool').map(x => [x.id, `${displayName(x.id)}(i)`]),
+      ...builderAlphabet.map(t => [`token:${t}`, `Q_${t}(i)`]),
+    ];
+    const ints = [['0', '0'], ...earlier.filter(x => TYPES[x.kind] === 'int').map(x => [x.id, `${displayName(x.id)}(i)`])];
     const operand = (key, options) => {
-      const control = choice(`${n.id} ${key}`, options, n[key], value => {n[key] = value; schedule();});
+      const control = choice(`${n.id} ${key}`, options, n[key], value => {n[key] = value; renderBuilder(); schedule();});
       control.className = 'inline-field';
       control.querySelector('select').setAttribute('aria-label', `${n.id} ${key}`);
       control.firstChild.remove();
+      if (isTokenOperand(n[key])) {
+        control.classList.add('typeset-predicate');
+        const rendered = el('span', undefined, 'predicate-display');
+        rendered.setAttribute('aria-hidden', 'true');
+        rendered.append(el('span', 'Q'), el('sub', n[key].slice(6)), el('span', '(i)'));
+        control.append(rendered);
+      }
       return control;
     };
     if (['compare', 'add', 'subtract', 'and', 'or'].includes(n.kind)) {
@@ -559,7 +615,7 @@ function renderBuilder() {
           ...optionsFor(index).filter(([kind]) => kind !== 'compare').map(([kind,label]) => [`kind:${kind}`, label]),
         ], `op:${n.op}`, value => {
           if (value.startsWith('op:')) n.op = value.slice(3);
-          else nodes[index] = structuredNode(nodes, index, value.slice(5), n.id);
+          else nodes[index] = structuredNode(nodes, index, value.slice(5), n.id, builderAlphabet);
           renderBuilder(); schedule();
         });
         comparison.className = 'inline-field operation-field';
@@ -570,21 +626,49 @@ function renderBuilder() {
       statement.append(operand('right', opts));
     } else {
       statement.append(operator);
-      if (n.kind === 'token') statement.append(operand('token', ['a','b','(',')']), el('span', '(i)'));
+      if (n.kind === 'token') {
+        const symbol = operand('token', builderAlphabet);
+        symbol.classList.add('token-subscript');
+        const indicator = el('span', undefined, 'token-indicator');
+        indicator.append(operator, symbol, el('span', '(i)'));
+        statement.append(indicator);
+      }
       if (n.kind === 'not') statement.append(operand('input', bools));
       if (n.kind === 'count' || n.kind === 'tokenCount') {
-        const value = n.kind === 'count' ? `predicate:${n.input}` : `token:${n.token}`;
+        const value = `${n.position || 'j'}:` + (n.kind === 'count' ? `predicate:${n.input}` : `token:${n.token}`);
         const select = choice(`${n.id} counted predicate`, [
-          ...['a','b','(',')'].map(t => [`token:${t}`, `Q(${JSON.stringify(t)})(j)`]),
-          ...earlier.filter(x => TYPES[x.kind] === 'bool').map(x => [`predicate:${x.id}`, `${x.id}(j)`]),
+          ...['j', 'i'].flatMap(position => [
+            ...builderAlphabet.map(t => [`${position}:token:${t}`, `Q_${t}(${position})`]),
+            ...earlier.filter(x => TYPES[x.kind] === 'bool').map(x => [`${position}:predicate:${x.id}`, `${displayName(x.id)}(${position})`]),
+          ]),
         ], value, selected => {
+          n.position = selected[0];
+          selected = selected.slice(2);
           if (selected.startsWith('token:')) {n.kind = 'tokenCount'; n.token = selected.slice(6); delete n.input;}
           else {n.kind = 'count'; n.input = selected.slice(10); delete n.token;}
           renderBuilder(); schedule();
         });
         select.className = 'inline-field';
-        select.querySelector('select').setAttribute('aria-label', `${n.id} counted predicate`);
+        const predicateMenu = select.querySelector('select');
+        predicateMenu.setAttribute('aria-label', `${n.id} counted predicate`);
+        const defined = el('optgroup');
+        defined.label = 'Earlier predicates';
+        const indicators = el('optgroup');
+        indicators.label = 'Token indicators';
+        for (const option of [...predicateMenu.options]) {
+          (option.value.slice(2).startsWith('predicate:') ? defined : indicators).append(option);
+        }
+        if (defined.children.length) predicateMenu.append(defined);
+        predicateMenu.append(indicators);
+        predicateMenu.value = value;
         select.firstChild.remove();
+        if (n.kind === 'tokenCount') {
+          select.classList.add('typeset-predicate');
+          const rendered = el('span', undefined, 'predicate-display');
+          rendered.setAttribute('aria-hidden', 'true');
+          rendered.append(el('span', 'Q'), el('sub', n.token), el('span', `(${n.position || 'j'})`));
+          select.append(rendered);
+        }
         statement.append(select);
       }
     }
@@ -600,20 +684,48 @@ function renderBuilder() {
     line.append(remove);
     program.append(line);
   });
-  const add = choice('Add a line', [['','Choose an expression…'], ...optionsFor(nodes.length)], '', kind => {
-    if (!kind) return;
-    let id;
-    do { id = `${TYPES[kind] === 'int' ? 'C' : 'P'}${nextId++}`; } while (nodes.some(n => n.id === id));
-    const node = structuredNode(nodes, nodes.length, kind, id);
-    nodes.push(node);
-    if (TYPES[node.kind] === 'bool') output = node.id;
-    renderBuilder(); schedule();
-  });
-  add.className = 'add-line';
-  add.querySelector('select').disabled = nodes.length >= 24;
+  const add = el('details', undefined, 'add-expression');
+  const trigger = el('summary', nodes.length >= 24 ? '24-line limit reached' : '+ Add a line');
+  add.append(trigger);
+  if (nodes.length >= 24) {
+    trigger.setAttribute('aria-disabled', 'true');
+    trigger.addEventListener('click', event => event.preventDefault());
+  } else {
+    const panel = el('div', undefined, 'expression-picker');
+    const notation = {token:'Qₐ', count:'#[j ≤ i] P(j)', compare:'C₁ ≤ C₂',
+      and:'P₁ ∧ P₂', or:'P₁ ∨ P₂', not:'¬P', add:'C₁ + C₂', subtract:'C₁ − C₂',
+      constant:'1', true:'⊤'};
+    const labels = {token:'Token predicate',count:'Prefix count',compare:'Comparison',
+      and:'Conjunction',or:'Disjunction',not:'Negation',add:'Addition',subtract:'Subtraction',
+      constant:'Count constant',true:'Boolean constant'};
+    for (const [type, title] of [['bool','Predicates'], ['int','Counts']]) {
+      const group = el('div', undefined, 'expression-group');
+      group.append(el('div', title, 'expression-group-title'));
+      for (const [kind] of optionsFor(nodes.length).filter(([kind]) => TYPES[kind] === type)) {
+        const option = button('', () => {
+          let id;
+          do { id = `${type === 'int' ? 'C' : 'P'}${nextId++}`; } while (nodes.some(n => n.id === id));
+          const node = structuredNode(nodes, nodes.length, kind, id, builderAlphabet);
+          nodes.push(node);
+          if (type === 'bool') output = node.id;
+          renderBuilder(); schedule();
+          const lastLine = $('mode-workspace').querySelector('.program-line:last-of-type');
+          lastLine?.querySelector('select')?.focus();
+        }, 'expression-option');
+        option.setAttribute('aria-label', `Add ${labels[kind].toLowerCase()}`);
+        option.append(el('span', notation[kind], 'expression-symbol'), el('span', labels[kind], 'expression-name'));
+        group.append(option);
+      }
+      panel.append(group);
+    }
+    add.append(panel);
+    add.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {add.open = false; trigger.focus(); event.stopPropagation();}
+    });
+  }
   program.append(add);
   area.append(program);
-  area.append(choice('Output', [['','Choose a Boolean result'], ...nodes.filter(n => TYPES[n.kind] === 'bool').map(n => [n.id, `${n.id}(|w|)`])], output, value => {output = value; schedule();}));
+  area.append(choice('Output', [['','Choose a Boolean result'], ...nodes.filter(n => TYPES[n.kind] === 'bool').map(n => [n.id, `${displayName(n.id)}(|w|)`])], output, value => {output = value; schedule();}));
 }
 function renderRepair() {
   const area = $("mode-controls");
