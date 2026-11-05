@@ -38,7 +38,9 @@ function selectMode(mode) {
   if (editing) {
     if (!editorFrame.getAttribute('src')) editorFrame.src = editorFrame.dataset.src;
   } else {
-    frame.contentDocument?.querySelector(`[data-mode="${mode}"]`)?.click();
+    const doc = frame.contentDocument;
+    if (doc?.documentElement.dataset.labMode !== mode) doc?.querySelector(`[data-mode="${mode}"]`)?.click();
+    if (doc) doc.documentElement.dataset.labMode = mode;
   }
   modeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.labMode === mode)));
 }
@@ -61,12 +63,30 @@ function prepareFrame() {
     body>header,.skip,.notebook-intro,.design-notes,.mode-nav{display:none!important}
     .notebook-shell{width:100%;max-width:none;margin:0;padding:16px}
     .experiment{padding:8px;border:0;margin:0}.experiment-heading h2{font-size:1.5rem}
-    .mode-description{font-size:.9rem}
+    #mode-kicker,#mode-title,#reset-design,.mode-description,.runtime-bar,
+    #toggle-code,.code-actions+p,#result-intro,#input-area .small,.drag-help,
+    #mode-workspace>.toolbar>button:nth-child(2){display:none!important}
+    .experiment-heading{display:none}
+    .code-actions{margin-top:16px}
+    html[data-lab-mode=walk] .code-actions{display:none}
+    html[data-lab-mode=build] #values,html[data-lab-mode=build] #inspection,
+    html[data-lab-mode=build] #result-heading{display:none}
+    #mode-workspace>.toolbar{margin-bottom:16px}
+    .result-header{margin-top:12px}
     @media(max-width:550px){.notebook-shell{padding:10px}.experiment-heading{flex-wrap:wrap}}`;
   doc.head.append(style);
+  const status = doc.getElementById('runtime-status');
+  const statusBar = status.closest('.runtime-bar');
+  const updateStatus = () => {
+    const normal = status.textContent.startsWith('Live values');
+    statusBar.style.setProperty('display', normal ? 'none' : 'block', 'important');
+  };
+  new MutationObserver(updateStatus).observe(status, {childList: true, characterData: true, subtree: true});
+  updateStatus();
   if (pendingMode !== 'editor') selectMode(pendingMode);
   sizeFrame(frame, doc.querySelector('.notebook-shell'));
   const editorButton = doc.getElementById('open-editor');
+  if (editorButton) editorButton.textContent = 'Edit this program →';
   if (editorButton) editorButton.onclick = () => {
     const source = doc.getElementById('source-code').textContent;
     const tokens = [...doc.querySelectorAll('#input-area [data-position]')]
@@ -87,8 +107,20 @@ function prepareEditor() {
     body>main{width:100%;max-width:none!important;padding:16px!important}
     #playground{padding:0;border:0}.lab{margin:0}.code-grid{grid-template-columns:1fr}
     .lab-body{padding:16px}textarea{min-height:240px}
+    .lab-head,#share,#download-trace,#reset,#example-guide,
+    [aria-label="Suggested inputs"],.code-grid>div:nth-child(2),
+    .trace-nav,#row-explanation,#cell-note,.lab-body>h3,.lab-body>h3+p{display:none!important}
     @media(max-width:550px){body>main{padding:8px!important}.lab-body{padding:8px}}`;
   doc.head.append(style);
+  const status = doc.getElementById('engine-status');
+  const conciseStatus = () => {
+    const text = status.textContent;
+    if (text.startsWith('Showing a saved trace')) status.textContent = 'Example output. Run to evaluate your edits.';
+    else if (text === 'Evaluated by the pinned Python interpreter.') status.textContent = 'Run complete.';
+    else if (text.startsWith('Loading Python')) status.textContent = 'Loading interpreter…';
+  };
+  new MutationObserver(conciseStatus).observe(status, {childList: true, characterData: true, subtree: true});
+  conciseStatus();
   sizeFrame(editorFrame, doc.querySelector('main'));
 }
 frame.addEventListener('load', prepareFrame);

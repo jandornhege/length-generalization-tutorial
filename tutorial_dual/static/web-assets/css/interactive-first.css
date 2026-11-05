@@ -5,3 +5,6 @@
 @media print{.lab-layout{display:none}.lab-background{margin:0;border:0}.lab-header{display:none}}
 
 .lab-tabs{display:flex;gap:.5rem;padding:1rem 1.2rem .4rem;flex-wrap:wrap}.lab-tabs button{flex:1;min-width:130px;font-weight:650;padding:.8rem}.lab-tabs button[aria-pressed=true]{background:var(--accent);color:white;border-color:var(--accent)}
+
+/* A single workspace: no duplicate navigation or explanatory sidebar. */
+.lab-layout{display:block;max-width:1100px;margin:0 auto}.lab-intro{max-width:1100px;margin:auto;padding:1.5rem 0 1rem}.lab-intro h1{font-size:clamp(2rem,4vw,3rem)}.lab-intro .eyebrow{display:none}.lab-background{max-width:1100px;margin-top:3rem}.lab-tabs{padding:.8rem .8rem .4rem}.lab-tabs button{flex:0 1 auto;min-width:0}.lab-stage{box-shadow:none}

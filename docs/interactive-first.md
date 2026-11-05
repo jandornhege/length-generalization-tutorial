@@ -15,3 +15,5 @@ Presentation files:
 The walkthrough and builder run locally in JavaScript. The text editor loads its Python runtime on first use; it initially displays a saved trace and labels that state explicitly. Switching tabs preserves each iframe's state. The builder's "Continue in text editor" action transfers the program and input into the editor tab.
 
 Publishing with `scripts/publish-personal-blog.sh` replaces the live blog. Do not use it merely to review this variation; use the local preview until publication is requested.
+
+The simplified presentation uses one tab row without a sidebar. Routine evaluator status, duplicate instructions, generated-code toggles, and share/download controls are hidden in the embedded view. Errors remain visible. The builder shows per-block values and the final decision without a second duplicate value table. The editor retains input, source, Run/Stop, execution status, and trace.

@@ -21,16 +21,12 @@
         ]
         #html.elem("main", attrs: (class: "lab-main"))[
           #html.elem("section", attrs: (class: "lab-intro"))[
-            #html.elem("p", attrs: (class: "eyebrow"))[An explorable tutorial]
+            #html.elem("p", attrs: (class: "eyebrow"))[C-RASP playground]
             #html.elem("h1")[Small program. Longer inputs.]
-            #html.elem("p", attrs: (class: "deck"))[Change a symbol. Follow the counts. Build a rule that works beyond a single example.]
+            #html.elem("p", attrs: (class: "deck"))[Follow a program, build your own, or edit the code.]
           ]
           #html.elem("div", attrs: (class: "lab-layout"))[
             #html.elem("section", attrs: (id: "playground", class: "lab-stage", "aria-label": "C-RASP playground"))[
-              #html.elem("div", attrs: (class: "stage-label"))[
-                #html.elem("strong")[Your playground]
-                #html.elem("span")[Explore · build · edit]
-              ]
               #html.elem("nav", attrs: (class: "lab-tabs", "aria-label": "Choose an interactive tool"))[
                 #html.elem("button", attrs: ("data-lab-mode": "walk", "aria-pressed": "true"))[01 · Walkthrough]
                 #html.elem("button", attrs: ("data-lab-mode": "build", "aria-pressed": "false"))[02 · Block builder]
@@ -47,38 +43,6 @@
                 "data-src": asset-url("/assets/interactive/text-editor.html"),
                 title: "C-RASP text editor and Python interpreter", height: "1100",
               ))[]
-              #html.elem("p", attrs: (class: "stage-footnote"))[
-                #link(asset-url("/assets/interactive/notebook.html"))[Open playground on its own ↗]
-                · Positions start at 0; prefix counts include the current token.
-              ]
-            ]
-            #html.elem("aside", attrs: (class: "lab-guide", "aria-label": "Things to try"))[
-              #html.elem("p", attrs: (class: "eyebrow"))[Start with a question]
-              #html.elem("h2")[What changes when…]
-              #html.elem("button", attrs: (class: "challenge", "data-lab-mode": "walk", "aria-pressed": "true"))[
-                #html.elem("span", attrs: (class: "challenge-number"))[01 / Understand]
-                #html.elem("strong")[…you follow one computation?]
-                #html.elem("span")[Reveal one assignment at a time and inspect its values.]
-              ]
-              #html.elem("button", attrs: (class: "challenge", "data-lab-mode": "build", "aria-pressed": "false"))[
-                #html.elem("span", attrs: (class: "challenge-number"))[02 / Build]
-                #html.elem("strong")[…you write the rule yourself?]
-                #html.elem("span")[Combine typed operations and inspect every intermediate value.]
-              ]
-              #html.elem("button", attrs: (class: "challenge", "data-lab-mode": "editor", "aria-pressed": "false"))[
-                #html.elem("span", attrs: (class: "challenge-number"))[03 / Edit]
-                #html.elem("strong")[…you edit the program directly?]
-                #html.elem("span")[Write C-RASP, run the Python interpreter, and examine the trace.]
-              ]
-              #html.elem("details", attrs: (class: "guide-note"))[
-                #html.elem("summary")[New to C-RASP?]
-                #html.elem("p")[Each program line computes one value per input position. Count symbols, compare counts, then combine yes/no answers. The last position decides whether to accept the input.]
-                #html.elem("button", attrs: ("data-lab-mode": "walk"))[Walk through one line at a time →]
-              ]
-              #html.elem("details", attrs: (class: "guide-note"))[
-                #html.elem("summary")[What does this tell us about transformers?]
-                #html.elem("p")[The same fixed program can run on different input lengths. The walkthrough and builder evaluate a small C-RASP subset on up to 16 tokens. The text editor uses the Python interpreter and supports up to 128 tokens. Neither trains a transformer. The background below explains the connection and its limits.]
-              ]
             ]
           ]
           #html.elem("section", attrs: (id: "background", class: "lab-background"))[
