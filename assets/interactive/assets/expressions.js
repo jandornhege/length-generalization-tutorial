@@ -1,5 +1,21 @@
 // Expression trees shared by the text editor, validator, evaluator and export.
 const precedence = { '||': 1, '&&': 2, '==': 3, '!=': 3, '<': 3, '<=': 3, '>': 3, '>=': 3, '+': 4, '-': 4 };
+
+// A new assignment starts a statement; other nonempty lines continue its RHS.
+// Preserve physical line numbers for diagnostics and newlines inside literals.
+export function* assignmentLines(source) {
+  let statement = '', start = 0;
+  for (const [index, line] of source.split('\n').entries()) {
+    if (!line.trim()) continue;
+    if (!statement || /^\s*[A-Za-z][A-Za-z0-9_]*\s*=(?!=)/.test(line)) {
+      if (statement) yield { line: statement, index: start };
+      statement = line;
+      start = index;
+    } else statement += '\n' + line;
+  }
+  if (statement) yield { line: statement, index: start };
+}
+
 export function parseExpression(source) {
   if (source.length > 4000) throw new Error('An expression is limited to 4,000 characters.');
   const tokens = [...source.matchAll(/\s+|"(?:[^"\\]|\\.)*"|\d+|[A-Za-z][A-Za-z0-9_]*|&&|\|\||==|!=|<=|>=|[#!()+<>-]|\S/g)]
@@ -40,13 +56,13 @@ export function parseExpression(source) {
   if (index !== tokens.length) throw new Error(`Unexpected ${tokens[index]}; use an operator between operands.`);
   return tree;
 }
-export function inferExpression(tree, env, alphabet, depth = 0) {
+export function inferExpression(tree, env, alphabet, { allowNested = true } = {}, depth = 0) {
   if (depth > 64) throw new Error('Expression nesting is limited to 64 levels.');
-  const infer = child => inferExpression(child, env, alphabet, depth + 1);
+  const infer = child => inferExpression(child, env, alphabet, { allowNested }, depth + 1);
   const predicate = child => {
     const type = infer(child);
     if (type !== 'bool') throw new Error('This operation needs a yes/no predicate.');
-    if (!['predicate', 'boolean'].includes(child.family))
+    if (!allowNested && !['predicate', 'boolean'].includes(child.family))
       throw new Error('Boolean operations cannot contain counts or comparisons.');
     return child.family;
   };
@@ -68,7 +84,9 @@ export function inferExpression(tree, env, alphabet, depth = 0) {
       predicate(tree.input); type = 'bool'; family = 'boolean'; break;
     case 'count': {
       const inputType = infer(tree.input);
-      if (inputType !== 'bool' || tree.input.family !== 'predicate')
+      if (inputType !== 'bool')
+        throw new Error('A prefix count needs a yes/no predicate.');
+      if (!allowNested && tree.input.family !== 'predicate')
         throw new Error('A prefix count takes one Boolean predicate; counts and Boolean functions cannot be mixed.');
       type = 'int'; family = 'count'; break;
     }
@@ -96,6 +114,12 @@ export function inferExpression(tree, env, alphabet, depth = 0) {
   tree.type = type;
   tree.family = family;
   return type;
+}
+
+// Keep autocomplete's existing simple operand families, independently of the
+// richer expressions accepted when typing a program directly.
+export function inferGuidedExpression(tree, env, alphabet) {
+  return inferExpression(tree, env, alphabet, { allowNested: false });
 }
 
 export function expressionReferences(tree) {

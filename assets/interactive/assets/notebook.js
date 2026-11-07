@@ -1,5 +1,6 @@
 import { attachAutocomplete } from "./autocomplete.js";
 import { parseProgram, completions, collectProgramSymbols } from "./program-text.js";
+import { YOU_ARE_GREAT } from "./example-programs.js";
 import {
   TYPES,
   DYCK,
@@ -551,16 +552,20 @@ function renderBuilder() {
       ["both", "Contains both a and b"],
       ["before", "An a occurs before a b"],
       ["dyck", "Balanced parentheses"],
+      ["you-are-great", YOU_ARE_GREAT.label],
     ],
     "",
     value => {
       if (!value) return;
-      nodes = clone(value === "contains" ? CONTAINS : value === "both" ? BOTH_SYMBOLS : value === "before" ? A_BEFORE_B : DYCK);
-      output = value === "contains" ? "A3" : "Accept";
+      const example = value === "you-are-great" ? YOU_ARE_GREAT : null;
+      draft = example?.source ?? null;
+      tokens = Array.from(example?.input ?? (value === "contains" ? "abba" : value === "dyck" ? "()(())" : "ab"))
+        .filter(token => !/\s/u.test(token));
+      nodes = example ? parseProgram(draft, builderSymbols())
+        : clone(value === "contains" ? CONTAINS : value === "both" ? BOTH_SYMBOLS : value === "before" ? A_BEFORE_B : DYCK);
+      output = example?.output ?? (value === "contains" ? "A3" : "Accept");
       outputManuallySelected = false;
-      tokens = [...(value === "contains" ? "abba" : value === "dyck" ? "()(())" : "ab")];
       builderTokens = [...tokens];
-      draft = null;
       renderInput();
       renderBuilder();
       schedule();
@@ -571,7 +576,7 @@ function renderBuilder() {
   const reference = el("details", undefined, "syntax-reference");
   reference.id = "builder-syntax-reference";
   reference.append(el("summary", "Syntax reference"));
-  const referenceIntro = el("p", "One assignment per line. Names are unique and can refer only to earlier assignments.", "syntax-reference-intro");
+  const referenceIntro = el("p", "Start each assignment on a new line; expressions may continue across lines. Names are unique and can refer only to earlier assignments.", "syntax-reference-intro");
   reference.append(referenceIntro);
   const referenceGroups = [
     ["Variable names", [
@@ -582,7 +587,7 @@ function renderBuilder() {
       ["!P", "Negate the yes/no value of P."],
       ["P && Q", "True when both Boolean operands P and Q are true."],
       ["P || Q", "True when either Boolean operand P or Q is true."],
-      ["(P)", "Group a Boolean expression. Boolean functions may nest with other Boolean functions and token predicates."],
+      ["(P)", "Group a Boolean expression. Counts, comparisons and Boolean operations may be nested, with numeric operands for comparisons and Boolean operands for counting and logic."],
       ["true, false", "Constant yes and no predicates."],
       ["<, <=, ==, !=, >=, >", "Compare two number values; each comparison produces a Boolean value."],
     ]],
