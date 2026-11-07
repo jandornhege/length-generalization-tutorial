@@ -1,19 +1,22 @@
-# Interactive-first variation
+# C-RASP interactive editor and background
 
 Branch: `blog/interactive-first`.
 
-The HTML template puts three tools first: walkthrough, structured program builder, and text editor. The canonical manuscript remains the source of the optional background sections; the PDF content is unchanged. The repair, token-sandbox, and prediction modes are not exposed in this variation's embedded notebook.
+The main page opens directly in the C-RASP program builder. It has no tool tabs or separate text-editor iframe. The editor supports free typing, optional cursor suggestions, clickable syntax slots, insertion between lines, and line removal. Token predicates use quoted symbols such as `"a"`; suggestions include symbols from the input string and the program, without a separate alphabet declaration.
 
-Run `./build_tutorial.sh preview` to view this branch locally. The local review server may also be running at http://127.0.0.1:8794/.
+The input string appears below the program, followed by its decision. The selected Boolean variable supplies the decision at the last position. The full execution trace and syntax reference are expandable. Evaluation runs locally in JavaScript.
+
+Background material appears as eight numbered chapter cards with short summaries and subtopic previews. Opening a chapter gives it the full reading width while the other cards remain in a grid. Each chapter offers section links, and the overview supports expanding or collapsing all chapters. The canonical prose and chapter introductions live in `tutorial_dual/manuscript.typ` and are shared by the PDF and HTML builds.
+
+Run `./build_tutorial.sh preview` to review the main page at the URL printed by the preview server. The standalone companion at `site/` is a separate surface.
 
 Presentation files:
 
 - `tutorial_dual/site/page.typ`
 - `tutorial_dual/static/web-assets/css/interactive-first.css`
 - `tutorial_dual/static/web-assets/scripts/interactive-first.js`
+- `tutorial_dual/static/web-assets/interactive/assets/notebook.js` and its editor modules
 
-The walkthrough and builder run locally in JavaScript. The text editor loads its Python runtime on first use; it initially displays a saved trace and labels that state explicitly. Switching tabs preserves each iframe's state. The builder's "Continue in text editor" action transfers the program and input into the editor tab.
+Validate with `./build_tutorial.sh both` and `./build_tutorial.sh check`. With Node.js 22 on PATH, also run `node scripts/check.mjs`, `node --test tests/*.test.mjs`, and `node --test tutorial_dual/tests/*.test.mjs`.
 
-Publishing with `scripts/publish-personal-blog.sh` replaces the live blog. Do not use it merely to review this variation; use the local preview until publication is requested.
-
-The simplified presentation uses one tab row without a sidebar. Routine evaluator status, duplicate instructions, generated-code toggles, and share/download controls are hidden in the embedded view. Errors remain visible. The program builder presents inline C-RASP assignments and one value table below the program. An Add a line menu offers valid expressions; operand menus contain only earlier variables of the required type. Operation replacement preserves the result type, and deletion is disabled when later lines depend on the variable. The editor retains input, source, Run/Stop, execution status, and trace.
+Publishing with `scripts/publish-personal-blog.sh` replaces the personal live blog. Run it only when publication has been requested. After committing the source changes, push `HEAD` to the personal repository's `main` branch and run the publisher; it builds for `/length-generalization-tutorial/` and updates the `gh-pages` branch.

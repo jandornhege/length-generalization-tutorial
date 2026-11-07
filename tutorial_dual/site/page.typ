@@ -9,46 +9,42 @@
       #html.head[
         #html.elem("meta", attrs: (charset: "utf-8"))
         #html.elem("meta", attrs: (name: "viewport", content: "width=device-width, initial-scale=1"))
+        #html.elem("title")[C-RASP interactive editor]
         #html.link(rel: "stylesheet", href: asset-url("/assets/css/article.css"))
-        #html.link(rel: "stylesheet", href: asset-url("/assets/css/interactive-first.css"))
-        #html.elem("script", attrs: (src: asset-url("/assets/scripts/interactive-first.js"), defer: ""))[]
+        #html.link(rel: "stylesheet", href: asset-url("/assets/css/interactive-first.css") + "?v=20261107-expanded-chapter-grid")
+        #html.elem("script", attrs: (src: asset-url("/assets/scripts/interactive-first.js") + "?v=20261107-expanded-chapter-grid", defer: ""))[]
       ]
       #html.elem("body", attrs: (class: "interactive-first"))[
-        #html.elem("a", attrs: (href: "#playground", class: "skip"))[Skip to playground]
+        #html.elem("a", attrs: (href: "#playground", class: "skip"))[Skip to editor]
         #html.elem("header", attrs: (class: "lab-header"))[
-          #html.elem("a", attrs: (href: "#", class: "lab-brand"))[C-RASP / Length generalization]
-          #html.elem("a", attrs: (href: "#background"))[Theory & references ↓]
+          #html.elem("a", attrs: (href: "#", class: "lab-brand"))[C-RASP]
+          #html.elem("nav", attrs: (class: "page-nav", "aria-label": "Page sections"))[
+            #html.elem("a", attrs: (href: "#playground"))[Editor]
+            #html.elem("a", attrs: (href: "#background"))[Background]
+          ]
         ]
         #html.elem("main", attrs: (class: "lab-main"))[
           #html.elem("section", attrs: (class: "lab-intro"))[
-            #html.elem("p", attrs: (class: "eyebrow"))[C-RASP playground]
-            #html.elem("h1")[Small program. Longer inputs.]
-            #html.elem("p", attrs: (class: "deck"))[Follow a program, build your own, or edit the code.]
+            #html.elem("h1")[C-RASP interactive editor]
+            #html.elem("p", attrs: (class: "deck"))[C-RASP programs combine Boolean predicates and prefix counts to compute a value at every input position. Write a program, try different input strings, and expand the execution trace to see how its decision is computed.]
           ]
           #html.elem("div", attrs: (class: "lab-layout"))[
-            #html.elem("section", attrs: (id: "playground", class: "lab-stage", "aria-label": "C-RASP playground"))[
-              #html.elem("nav", attrs: (class: "lab-tabs", "aria-label": "Choose an interactive tool"))[
-                #html.elem("button", attrs: ("data-lab-mode": "walk", "aria-pressed": "true"))[01 · Walkthrough]
-                #html.elem("button", attrs: ("data-lab-mode": "build", "aria-pressed": "false"))[02 · Program builder]
-                #html.elem("button", attrs: ("data-lab-mode": "editor", "aria-pressed": "false"))[03 · Text editor]
-              ]
+            #html.elem("section", attrs: (id: "playground", class: "lab-stage", "aria-label": "C-RASP interactive editor"))[
               #html.elem("iframe", attrs: (
                 class: "lab-frame", id: "lab-frame",
-                src: asset-url("/assets/interactive/notebook.html") + "#walk",
-                title: "Interactive C-RASP playground: edit tokens, build programs and inspect values",
-                height: "1100",
-              ))[]
-              #html.elem("iframe", attrs: (
-                class: "lab-frame", id: "editor-frame", hidden: "",
-                "data-src": asset-url("/assets/interactive/text-editor.html"),
-                title: "C-RASP text editor and Python interpreter", height: "1100",
+                src: asset-url("/assets/interactive/notebook.html") + "?embed=build&v=20261107-builder-only",
+                title: "C-RASP interactive editor",
+                height: "640",
               ))[]
             ]
           ]
           #html.elem("section", attrs: (id: "background", class: "lab-background"))[
-            #html.elem("p", attrs: (class: "eyebrow"))[Go deeper, when you need it]
-            #html.elem("h2")[The ideas behind the experiment]
-            #html.elem("p")[Definitions, worked programs, and the theory of length generalization. Open a topic to connect what you observed to the formal account.]
+            #html.elem("h2", attrs: (id: "background-title"))[Background]
+            #html.elem("p", attrs: (class: "background-intro"))[Explore the ideas behind the editor: the C-RASP language, its connection to transformers, and the assumptions behind length generalization guarantees. Choose a chapter to read its explanation and worked examples.]
+            #html.elem("div", attrs: (class: "background-tools"))[
+              #html.elem("p", attrs: (id: "chapter-count"))[Chapter overview]
+              #html.elem("button", attrs: (id: "background-toggle-all", type: "button", "aria-controls": "article", "aria-expanded": "false"))[Expand all]
+            ]
             #html.elem("div", attrs: (id: "article", class: "reference-text"))[
               #set heading(numbering: none)
               #show math.equation.where(block: true): it => html.elem("div", attrs: (class: "display-equation"), it)

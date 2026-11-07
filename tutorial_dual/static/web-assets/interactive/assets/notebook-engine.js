@@ -1,3 +1,4 @@
+import { evaluateExpression } from "./expressions.js";
 import { TYPES, validateProgram, DEFAULT_ALPHABET, isTokenOperand } from "./notebook-model.js";
 
 // Execute the typed block model directly. No parser, network, worker, or eval().
@@ -19,7 +20,7 @@ export function evaluateBlocks(nodes, tokens, output, alphabet = DEFAULT_ALPHABE
   const at = (name, i) => (name === "0" ? 0 : isTokenOperand(name) ? tokens[i] === name.slice(6) : env.get(name)[i]);
   for (const n of nodes) {
     let total = 0;
-    const values = tokens.map((token, i) => {
+    const values = n.tree ? evaluateExpression(n.tree, env, tokens) : tokens.map((token, i) => {
       switch (n.kind) {
         case "token":
           return token === n.token;

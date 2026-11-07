@@ -1,6 +1,9 @@
+import { inferExpression, expressionReferences, printExpression } from "./expressions.js";
 // A small typed subset of C-RASP for the visual editor. This compiles syntax;
 // all vector evaluation is performed by the original Python interpreter.
 export const TYPES = {
+  expressionBool: "bool",
+  expressionInt: "int",
   token: "bool",
   tokenCount: "int",
   count: "int",
@@ -10,6 +13,9 @@ export const TYPES = {
   not: "bool",
   add: "int",
 };
+export const isTokenOperand = (value) => typeof value === "string" && value.startsWith("token:");
+const operandSource = (value) => isTokenOperand(value)
+  ? JSON.stringify(value.slice(6)) : value;
 export const DYCK = [
   { id: "Opens", kind: "tokenCount", token: "(" },
   { id: "Closes", kind: "tokenCount", token: ")" },
@@ -25,16 +31,18 @@ export const CONTAINS = [
   { id: "A3", kind: "compare", left: "A2", op: ">", right: "0" },
 ];
 export function references(node) {
-  if (node.kind === "count" || node.kind === "not") return [node.input];
+  if (node.tree) return expressionReferences(node.tree);
+  if (node.kind === "count" || node.kind === "not") return isTokenOperand(node.input) ? [] : [node.input];
   if (["compare", "and", "or", "add"].includes(node.kind))
-    return [node.left, node.right].filter((x) => x !== "0");
+    return [node.left, node.right].filter((x) => x !== "0" && !isTokenOperand(x));
   return [];
 }
-export function validateProgram(nodes) {
+export function validateProgram(nodes, alphabet = ["a", "b", "(", ")"]) {
   if (nodes.length > 24) throw new Error("This learning editor supports up to 24 blocks.");
   const seen = new Map();
   const need = (id, type) => {
     if (id === "0" && type === "int") return;
+    if (type === "bool" && isTokenOperand(id) && alphabet.includes(id.slice(6))) return;
     if (seen.get(id) !== type)
       throw new Error(
         `Choose an earlier ${type === "bool" ? "yes/no" : "number"} variable for ${id}.`,
@@ -44,7 +52,10 @@ export function validateProgram(nodes) {
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(n.id) || n.id === "Result" || seen.has(n.id))
       throw new Error("Variable names must be unique and valid.");
     if (!Object.hasOwn(TYPES, n.kind)) throw new Error("Unknown block.");
-    if (["token", "tokenCount"].includes(n.kind) && !["a", "b", "(", ")"].includes(n.token))
+    if (n.kind === "expressionBool" || n.kind === "expressionInt") {
+      if (inferExpression(n.tree, seen, alphabet) !== TYPES[n.kind]) throw new Error("Expression type changed.");
+    }
+    if (["token", "tokenCount"].includes(n.kind) && !alphabet.includes(n.token))
       throw new Error("Choose a supported token.");
     if (n.kind === "count" || n.kind === "not") need(n.input, "bool");
     if (["compare", "add"].includes(n.kind)) {
@@ -62,27 +73,28 @@ export function validateProgram(nodes) {
   return true;
 }
 export function expression(n) {
+  if (n.tree) return printExpression(n.tree);
   switch (n.kind) {
     case "token":
       return JSON.stringify(n.token);
     case "tokenCount":
       return `# ${JSON.stringify(n.token)}`;
     case "count":
-      return `# ${n.input}`;
+      return `# ${operandSource(n.input)}`;
     case "not":
-      return `! ${n.input}`;
+      return `! ${operandSource(n.input)}`;
     case "compare":
-      return `${n.left} ${n.op} ${n.right}`;
+      return `${operandSource(n.left)} ${n.op} ${operandSource(n.right)}`;
     case "and":
-      return `${n.left} && ${n.right}`;
+      return `${operandSource(n.left)} && ${operandSource(n.right)}`;
     case "or":
-      return `${n.left} || ${n.right}`;
+      return `${operandSource(n.left)} || ${operandSource(n.right)}`;
     case "add":
-      return `${n.left} + ${n.right}`;
+      return `${operandSource(n.left)} + ${operandSource(n.right)}`;
   }
 }
-export function compile(nodes, output) {
-  validateProgram(nodes);
+export function compile(nodes, output, alphabet = ["a", "b", "(", ")"]) {
+  validateProgram(nodes, alphabet);
   if (output && !nodes.some((n) => n.id === output && TYPES[n.kind] === "bool"))
     throw new Error("The decision must be a yes/no variable.");
   // The bridge expects a Boolean final row. With no decision selected, Result

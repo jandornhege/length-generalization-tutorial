@@ -1,25 +1,28 @@
-import { TYPES, validateProgram } from "./notebook-model.js";
+import { evaluateExpression } from "./expressions.js";
+import { TYPES, validateProgram, isTokenOperand } from "./notebook-model.js";
 
 // Execute the typed block model directly. No parser, network, worker, or eval().
 // The public editor has at most 24 blocks and 16 tokens. Arithmetic is checked
 // rather than silently accepting loss of integer precision.
-export function evaluateBlocks(nodes, tokens, output) {
-  validateProgram(nodes);
+export function evaluateBlocks(nodes, tokens, output, alphabet = ["a", "b", "(", ")"]) {
+  validateProgram(nodes, alphabet);
   if (
     !Array.isArray(tokens) ||
     tokens.length < 1 ||
     tokens.length > 16 ||
-    tokens.some((t) => !["a", "b", "(", ")"].includes(t))
+    tokens.some((t) => !alphabet.includes(t))
   )
-    throw new Error("Use 1–16 tokens from a, b, (, ).");
+    throw new Error(`Use 1–16 tokens from ${alphabet.join(", ") || "the input alphabet"}.`);
   if (output && !nodes.some((n) => n.id === output && TYPES[n.kind] === "bool"))
     throw new Error("Choose a yes/no output.");
   const env = new Map(),
     rows = [];
-  const at = (name, i) => (name === "0" ? 0 : env.get(name)[i]);
+  const at = (name, i) => name === "0" ? 0
+    : isTokenOperand(name) ? tokens[i] === name.slice(6)
+    : env.get(name)[i];
   for (const n of nodes) {
     let total = 0;
-    const values = tokens.map((token, i) => {
+    const values = n.tree ? evaluateExpression(n.tree, env, tokens) : tokens.map((token, i) => {
       switch (n.kind) {
         case "token":
           return token === n.token;

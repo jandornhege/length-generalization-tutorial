@@ -1,5 +1,13 @@
 #let c-rasp-editor-url = "https://github.com/lacoco-lab/Length_Generalization_Tutorial/tree/blog/interactive-tutorial/site/version2"
 
+#let chapter-intro(body) = context {
+  if target() == "html" {
+    html.elem("p", attrs: (class: "chapter-lead"), body)
+  } else {
+    body
+  }
+}
+
 // Shared authoring helpers: HTML folds details; PDF always includes the full text.
 #let details(title, body) = context {
   if target() == "html" {
@@ -38,29 +46,8 @@
 
 #let interactive-notebook() = context {
   if target() == "html" {
-    html.elem("section", attrs: (class: "interactive", "aria-label": "Explore the Dyck-1 program"))[
-      #heading(level: 3)[Try the Dyck-1 program]
-      Use the token sandbox to change `()(())` to `())(` and inspect the first prefix violation.
-      Then try the block builder or repair a rule.
-
-      #html.elem("p", attrs: (class: "small"))[
-        The notebook labels positions starting at 0; the equations above start at 1.
-        It evaluates a small typed C-RASP subset in your browser.
-      ]
-      // Relative assets keep this page portable under a hosting subdirectory.
-      #html.elem("iframe", attrs: (
-        src: "assets/interactive/notebook.html",
-        title: "Interactive C-RASP walkthrough and block builder",
-        loading: "lazy",
-        class: "notebook-frame",
-        height: "1100",
-      ))[]
-      #html.elem("p")[
-        #link("assets/interactive/notebook.html")[Open the notebook on its own]
-        #linebreak()
-        #link("https://github.com/lacoco-lab/Length_Generalization_Tutorial/tree/blog/interactive-tutorial")[Interactive tutorial source]
-      ]
-    ]
+    // The main page provides the program builder above the background article.
+    []
   } else {
     [*Try it yourself.* The #link(c-rasp-editor-url)[drag-and-drop C-RASP editor (source and launch instructions)] lets you build programs and inspect their values on sample inputs. It evaluates C-RASP programs; compilation into transformer weights is the separate construction discussed below.]
   }

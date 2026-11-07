@@ -1,6 +1,8 @@
-#import "components.typ": details, operation-columns, interactive-notebook, notation-box, operation-table, c-rasp-editor-url
+#import "components.typ": details, operation-columns, interactive-notebook, notation-box, operation-table, c-rasp-editor-url, chapter-intro
 
-= Motivation
+= Why length generalization?
+
+#chapter-intro[Why should a rule learned on short sequences keep working on longer ones? Distinguish representability, learning, and generalization.]
 
 We want models to apply what they learn to problems larger than those encountered during training. A model trained on short sequences might later need to copy a longer passage, count events across a longer record, or check the structure of a larger program. When the underlying task stays the same, can the model carry out the same computation on inputs longer than the training examples? This is the problem of *length generalization*.
 
@@ -21,7 +23,9 @@ Our main tool is *C-RASP*, a small programming language for computations over se
 We first develop C-RASP through a worked parentheses recognizer and examples of what the language can and cannot express. We then explain its compilation into transformers and the role of positional information. This leads to the length-generalization framework of #link(<huang-2025>)[Huang et al. (2025)], which connects suitable representations to eventual generalization under an idealized inference procedure. We keep this guarantee separate from ordinary gradient-based training and discuss what it does, and does not, tell us about the training lengths required. The final sections outline how additional computation through chain of thought changes the question and which limitations remain open.
 
 
-= Background
+= Foundations
+
+#chapter-intro[The complexity classes, sequence tasks, and causal transformer model used throughout the tutorial.]
 
 == Computational complexity <computational-complexity>
 
@@ -146,7 +150,9 @@ The circuit classes introduced in #link(<computational-complexity>)[the complexi
 
 The precision assumption matters: Huang et al.'s model permits unbounded-precision activations, so this circuit bound does not apply to it directly. Nor does the bound characterize C-RASP: for example, $#math.sans("TC")^0$ contains parity, whereas C-RASP does not. We consider autoregressive generation, which runs further forward passes to generate additional tokens, in the chain-of-thought section.
 
-= C-RASP
+= Programming in C-RASP
+
+#chapter-intro[Define token predicates and prefix counts, then study a parentheses recognizer and other language examples.]
 
 == Motivation
 - Why introduce C-RASP?
@@ -364,7 +370,9 @@ $V_a$ flags an $a$ after a $b$ or $c$, while $V_b$ flags a $b$ after a $c$. Thus
 
 // - *Unique copying:* Copying a sequence whose tokens are all distinct. Prior work shows this task is expressible in C-RASP, but its growing set of token identities lies outside the basic fixed-finite-alphabet setup. The paper discusses this caveat and treats vocabulary growth with C\*-RASP.
 
-== From C-RASP programs to transformers
+= From programs to transformers
+
+#chapter-intro[How attention and feedforward computations implement C-RASP operations, including the numerical assumptions used by the construction.]
 
 C-RASP provides a constructive lower bound on transformer expressivity: any C-RASP program can be simulated by a suitable transformer. Boolean operations are encoded by the transformer's feedforward layers, while prefix counting is implemented through attention.
 
@@ -416,17 +424,19 @@ Putting these constructions together, any fixed C-RASP program can be compiled i
 This compilation establishes representability, but does not imply that training will find the constructed solution. Empirical studies nevertheless find that C-RASP expressibility predicts length generalization on a range of algorithmic and formal-language tasks (#link(<huang-2025>)[Huang et al., 2025]).
 
 
-== Positional information
+= Positional information
+
+#chapter-intro[How positions enter the model, from finite positional tables to limit transformers and positional predicates.]
 
 So far, we have not used explicit positional embeddings. Positions are distinguished only by their tokens and the information available from their prefixes through causal attention. Positional embeddings provide an additional, explicit representation of *where* each token occurs. Here we consider absolute positional embeddings: each position $i$ has its own learned vector $p_i$, which is added to the token embedding $e(x_i)$:
 
 $ h_i = e(x_i) + p_i. $
 
-=== Finite positional tables and offsets
+== Finite positional tables and offsets
 
 The position vectors are stored in a finite table, so the model is defined only up to its maximum context length $L$. To train the embeddings across this table using shorter examples, the *offset trick* assigns an example of length $k$ the positional vectors $p_(o+1), dots, p_(o+k)$ for a valid offset $o$. Varying the offset allows training examples to occur throughout the context window, but does not guarantee that every position is observed in a finite training run or teach the model to generalize to longer examples. Since the table is still finite, the C-RASP simulation cannot be realized by one such fixed transformer for inputs of arbitrary length. Instead, consider a sequence of transformers with increasing context lengths and corresponding positional tables. To describe the underlying computations across these context lengths, the framework introduces a mathematical object called a limit transformer.
 
-=== Limit transformers
+== Limit transformers
 
 A limit transformer is an idealized model that captures the positional information provided by positional embeddings while remaining defined on inputs of arbitrary length. It has fixed width and finite-precision parameters. Besides positional vectors $p_i$, it can use an additional positional function in each attention head. Writing $i$ for the query position and $j$ for the key position, the attention logit has the form
 
@@ -454,7 +464,7 @@ $ r(i,j) = 0 quad "whenever" i - j > tau. $
 
 The preceding-position example is local with $tau = 1$. Assigning score 1 at every even distance is translation-invariant but not local. This restriction applies only to $r$; content-based attention can still aggregate over the entire prefix.
 
-=== Positional information in C-RASP
+== Positional information in C-RASP
 
 We can express the same kinds of information at the program level by extending C-RASP to $"C-RASP"[Phi, Psi]$. Here, $Phi$ is a collection of Boolean predicates on individual positions, and $Psi$ is a collection of Boolean relations between pairs of positions. We add positional predicates
 
@@ -471,17 +481,19 @@ For example, a unary predicate $phi(i)$ can mark the even positions. A binary re
 When the predicates in $Phi$ are periodic and the relations in $Psi$ are translation-invariant and local, we obtain the variant we denote by $"C-RASP"["Pos"]$ throughout this tutorial. This abbreviates the notation $"C-RASP"["periodic", "local"]$ used by #link(<huang-2025>)[Huang et al. (2025)]. The position-free language introduced earlier is the special case with no added positional predicates or relations.
 
 
-== From representability to length generalization
+= Length generalization guarantees
+
+#chapter-intro[What the idealized learning framework guarantees, and what it leaves unresolved about practical training and required input lengths.]
 
 A C-RASP program specifies one computation that works at every input length. Compiling it into a transformer establishes that the computation is representable. Length generalization asks a further question: can a learner identify such a computation from its behavior on shorter inputs?
 
-=== Training length and context length
+== Training length and context length
 
 To formalize this question, we must separate the lengths seen during training from the lengths the model can process. A model with context length $n$ can be tested on longer examples than it has seen, but only up to length $n$. Success within one fixed window therefore cannot establish generalization to arbitrarily long inputs. #link(<huang-2025>)[Huang et al. (2025)] address this by considering a sequence of transformers $T_n$ with increasing context length $n$. For each $n$, an idealized learner observes the target function $f$ on all inputs of length at most $n/2$ and selects $T_n$. We ask whether, for every sufficiently large $n$, this model also computes $f$ correctly on all unseen lengths between $n/2$ and $n$.
 
 This definition captures the idea that, once the learner has seen sufficiently long examples, its solution continues to work at greater lengths. Increasing the context window prevents the model's finite positional table from setting an arbitrary ceiling on the analysis, while leaving the longer inputs unseen makes extrapolation necessary. The factor of two is a convenient choice, rather than an essential assumption of the framework. Observing *all* inputs through the training length also isolates generalization across lengths from the separate problem of learning from a finite sample. The resulting guarantee concerns this idealized inference procedure; it does not say that one trained finite-context model can process inputs of every length.
 
-=== The idealized learner
+== The idealized learner
 
 The learner must fit every input through the training length and approximately minimize a complexity regularizer. Its positional contributions must also satisfy an offset-independence restriction. This is an idealized inference procedure; ordinary gradient-based training need not satisfy these assumptions.
 
@@ -497,7 +509,7 @@ A separate restriction concerns how the model uses positional information. Altho
 
 ]
 
-=== The main equivalence
+== The main equivalence
 
 Under the framework's assumptions, #link(<huang-2025>)[Huang et al. (2025, Theorem 7)] establish that the following statements are equivalent:
 
@@ -514,19 +526,23 @@ Why is this possible? Under the theorem's assumptions, bounded complexity leaves
 
 ]
 
-=== What follows for C-RASP?
+== What follows for C-RASP?
 
 The compilation introduced above connects $"C-RASP"["Pos"]$ directly to the main equivalence: every such program supplies a limit-transformer representation satisfying the theorem's restrictions. Expressing a target function in $"C-RASP"["Pos"]$ therefore guarantees eventual generalization with bounded regularization under the idealized inference procedure. This is a sufficient condition; the converse claim that every such limit transformer has an equivalent C-RASP[Pos] program is not established.
 
-=== How much training length is enough?
+== How much training length is enough?
 
 Eventual identification does not provide a practical stopping rule. #link(<yang-2026>)[Yang et al. (2026)], in _Length Generalization Bounds for Transformers_, show that no computable bound in terms of program description size exists for general C-RASP, even at counting depth two, with a corresponding result for the transformer model considered there. This concerns the maximum input length needed to distinguish candidate programs, rather than simply the number of training examples. The same work also identifies a restricted positive fragment, $"C-RASP"_+$, for which a computable bound does exist: the required training length is exponential in program description size, and this bound is optimal in the worst case. This fragment restricts count comparisons to nonnegative linear combinations of counts against constants. It is expressively equivalent to the paper's fully fixed-precision transformer model, for which the authors also obtain exponential bounds.
+
+= Limitations and open questions
+
+#chapter-intro[Directions for further exploration, including chain of thought, richer formalisms, and limitations of the transformer model.]
 
 == Chain of thought
 - Can CoT increase expressivity? (and how to fix this)
 - C-RASP CoT
 
-= Extensions / Limitations / Open Questions
+== Further directions
 - Open C-RASP conjecture
 - Incomputable bound
 - Extensions of C-RASP
@@ -534,6 +550,8 @@ Eventual identification does not provide a practical stopping rule. #link(<yang-
 - Other formalisms of length generalization (RASP-L etc.)
 
 = References
+
+#chapter-intro[The papers and other sources cited throughout the tutorial.]
 
 #block[Neil Immerman. 1999. _Descriptive Complexity._ Springer. #link("https://people.cs.umass.edu/~immerman/book/ch5.pdf")[Chapter 5: Parallelism].] <immerman-1999>
 
