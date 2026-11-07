@@ -17,6 +17,9 @@ export function attachAutocomplete(editor, getCompletions, isValidProgram = () =
   const referenceMirror = document.createElement('div');
   referenceMirror.className = 'editor-reference-mirror';
   referenceMirror.setAttribute('aria-hidden', 'true');
+  const referenceContent = document.createElement('div');
+  referenceContent.className = 'editor-reference-content';
+  referenceMirror.append(referenceContent);
   shell.append(activeLine, referenceMirror, gutter, lineActions);
   const popup = document.createElement('div');
   popup.className = 'code-completions';
@@ -36,21 +39,21 @@ export function attachAutocomplete(editor, getCompletions, isValidProgram = () =
   editor.setAttribute('aria-controls', popup.id);
   let items = [], selected = -1, composing = false, suggestionsDisabled = false;
   function updateReferenceMirror() {
-    referenceMirror.replaceChildren();
+    referenceContent.replaceChildren();
     const names = /"(?:[^"\\\n]|\\.)*(?:"|(?=\n|$))|[A-Za-z][A-Za-z0-9_]*/g;
     let end = 0;
     for (const match of editor.value.matchAll(names)) {
-      if (match.index > end) referenceMirror.append(document.createTextNode(editor.value.slice(end, match.index)));
+      if (match.index > end) referenceContent.append(document.createTextNode(editor.value.slice(end, match.index)));
       const name = document.createElement('span');
       name.className = 'editor-name';
       if (match[0].startsWith('"')) {
         try { name.dataset.alphabetSymbol = JSON.parse(match[0]); } catch {}
       } else name.dataset.variableName = match[0];
       name.textContent = match[0];
-      referenceMirror.append(name);
+      referenceContent.append(name);
       end = match.index + match[0].length;
     }
-    if (end < editor.value.length) referenceMirror.append(document.createTextNode(editor.value.slice(end)));
+    if (end < editor.value.length) referenceContent.append(document.createTextNode(editor.value.slice(end)));
   }
   function clearReferenceHighlight() {
     referenceMirror.querySelectorAll('.editor-name.is-referenced').forEach(name => name.classList.remove('is-referenced'));
@@ -104,9 +107,13 @@ export function attachAutocomplete(editor, getCompletions, isValidProgram = () =
     referenceMirror.style.font = style.font;
     referenceMirror.style.lineHeight = style.lineHeight;
     referenceMirror.style.letterSpacing = style.letterSpacing;
-    referenceMirror.style.padding = style.padding;
+    referenceMirror.style.width = `${editor.clientWidth}px`;
+    referenceMirror.style.height = `${editor.clientHeight}px`;
+    referenceContent.style.padding = style.padding;
     referenceMirror.style.tabSize = style.tabSize;
-    referenceMirror.style.transform = `translate(${-editor.scrollLeft}px, ${-editor.scrollTop}px)`;
+    // The viewport stays fixed; translate the full text inside it. Moving the
+    // clipped viewport itself hides every line beyond its initial height.
+    referenceContent.style.transform = `translate(${-editor.scrollLeft}px, ${-editor.scrollTop}px)`;
     const isActive = document.activeElement === editor || popup.contains(document.activeElement);
     const currentLine = editor.value.slice(0, editor.selectionStart).split('\n').length;
     const lineHeight = parseFloat(style.lineHeight);

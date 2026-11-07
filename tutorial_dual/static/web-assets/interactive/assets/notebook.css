@@ -694,6 +694,7 @@ html[data-embed] .value-table caption {
 .guided-program:focus { outline: none; }
 .editor-active-line { position: absolute; z-index: 0; left: 44px; right: 0; background: #f3f7f4; pointer-events: none; }
 .editor-reference-mirror { position: absolute; z-index: 1; inset: 0; overflow: hidden; box-sizing: border-box; color: #203c2d; white-space: pre; pointer-events: none; }
+.editor-reference-content { width: max-content; min-width: 100%; box-sizing: border-box; }
 .editor-name.is-referenced { border-radius: 2px; background: #dcecdf; box-shadow: 0 0 0 1px #dcecdf; }
 .editor-gutter { position: absolute; z-index: 3; left: 0; width: 42px; padding-right: 10px; box-sizing: border-box; color: #a0aaa4; background: #fafcfb; pointer-events: none; font: 12px/28px ui-monospace, monospace; text-align: right; }
 .editor-gutter span { display: block; height: 28px; }

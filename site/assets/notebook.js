@@ -1,5 +1,6 @@
 import { attachAutocomplete } from "./autocomplete.js";
 import { parseProgram, completions, collectProgramSymbols } from "./program-text.js";
+import { YOU_ARE_GREAT } from "./example-programs.js";
 import {
   TYPES,
   DYCK,
@@ -551,16 +552,20 @@ function renderBuilder() {
       ["both", "Contains both a and b"],
       ["before", "An a occurs before a b"],
       ["dyck", "Balanced parentheses"],
+      ["you-are-great", YOU_ARE_GREAT.label],
     ],
     "",
     value => {
       if (!value) return;
-      nodes = clone(value === "contains" ? CONTAINS : value === "both" ? BOTH_SYMBOLS : value === "before" ? A_BEFORE_B : DYCK);
-      output = value === "contains" ? "A3" : "Accept";
+      const example = value === "you-are-great" ? YOU_ARE_GREAT : null;
+      draft = example?.source ?? null;
+      tokens = Array.from(example?.input ?? (value === "contains" ? "abba" : value === "dyck" ? "()(())" : "ab"))
+        .filter(token => !/\s/u.test(token));
+      nodes = example ? parseProgram(draft, builderSymbols())
+        : clone(value === "contains" ? CONTAINS : value === "both" ? BOTH_SYMBOLS : value === "before" ? A_BEFORE_B : DYCK);
+      output = example?.output ?? (value === "contains" ? "A3" : "Accept");
       outputManuallySelected = false;
-      tokens = [...(value === "contains" ? "abba" : value === "dyck" ? "()(())" : "ab")];
       builderTokens = [...tokens];
-      draft = null;
       renderInput();
       renderBuilder();
       schedule();
