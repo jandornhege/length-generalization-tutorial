@@ -20,6 +20,16 @@ A positive answer to one question does not settle the next. Constructing suitabl
 
 Our main tool is *C-RASP*, a small programming language for computations over sequences. Its programs combine predicates on positions with counts over prefixes. A fixed program describes the same computation at every input length, making it possible to state an algorithm without choosing a maximum sequence length. C-RASP also connects these algorithms to transformers: prefix counts can be represented using attention, while feedforward layers implement comparisons and Boolean operations. This connection gives constructive expressivity results; it does not by itself establish a learning guarantee.
 
+#notation-box(label: "Informal theorem: C-RASP and length generalization")[
+*Informal theorem: C-RASP and length generalization.*
+
+Suppose a sequence task over a fixed finite alphabet is described by one fixed C-RASP program. Then, under the idealized learning framework of #link(<huang-2025>)[Huang et al. (2025)], transformers eventually generalize to longer inputs: for every sufficiently large context length $n$, the selected transformer computes the task correctly on *all inputs up to length $n$*, although training covers only inputs up to length $n/2$.
+
+This assumes that the learner fits *every* input through the training length, approximately minimizes the framework's complexity regularizer, and satisfies its positional restrictions. The result also covers C-RASP extended with periodic position predicates and local relations that depend only on relative position.
+
+*Why C-RASP matters.* A program supplies a length-independent algorithm that can be compiled into the transformer representations required by the theorem. Expressibility in C-RASP is therefore a sufficient condition for this idealized guarantee. It does not guarantee that gradient-based training finds the algorithm or give a practical training-length threshold.
+]
+
 We first develop C-RASP through a worked parentheses recognizer and examples of what the language can and cannot express. We then explain its compilation into transformers and the role of positional information. This leads to the length-generalization framework of #link(<huang-2025>)[Huang et al. (2025)], which connects suitable representations to eventual generalization under an idealized inference procedure. We keep this guarantee separate from ordinary gradient-based training and discuss what it does, and does not, tell us about the training lengths required. The final sections outline how additional computation through chain of thought changes the question and which limitations remain open.
 
 

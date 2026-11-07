@@ -2,7 +2,7 @@
 
 Branch: `blog/interactive-first`.
 
-The main page opens directly in the C-RASP program builder. It has no tool tabs or separate text-editor iframe. The editor supports free typing, optional cursor suggestions, clickable syntax slots, insertion between lines, and line removal. Token predicates use quoted symbols such as `"a"`; suggestions include symbols from the input string and the program, without a separate alphabet declaration.
+The main page opens directly in the C-RASP program builder. It has no tool tabs or separate text-editor iframe. The editor supports free typing, optional cursor suggestions, clickable syntax slots, insertion between lines, and line removal. Typed expressions may nest counts, comparisons, and Boolean operations, and assignments may continue across lines. Numeric and Boolean operands remain distinct; the suggestions retain their simple operand choices. Token predicates use quoted symbols such as `"a"`; suggestions include symbols from the input string and the program, without a separate alphabet declaration.
 
 The input string appears below the program, followed by its decision. The selected Boolean variable supplies the decision at the last position. The full execution trace and syntax reference are expandable. Evaluation runs locally in JavaScript.
 

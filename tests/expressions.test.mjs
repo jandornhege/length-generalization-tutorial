@@ -12,13 +12,14 @@ for (const base of ['../site/assets/', '../tutorial_dual/static/web-assets/inter
     assert.throws(() => parseProgram('A2="a"\nA1=#A2+A2'), /requires two number expressions/);
     assert.deepEqual(references(parseProgram('P="a"\nQ="b"\nAccept=P&&!Q').at(-1)), ['P','Q']);
   });
-  test(`${base} Boolean nesting and separate counts preserve their semantics`, () => {
+  test(`${base} Boolean nesting and inline counts preserve their semantics`, () => {
     const trace = run('P="a"\nQ="b"\nAny=P||Q\nNotP=!P\nAnyCount=#Any\nNotPCount=#NotP\nN=AnyCount+NotPCount\nAccept=P||Q&&!P');
     assert.deepEqual(trace.rows.find(r => r.name === 'N').values, [1, 3, 5, 6]);
     assert.deepEqual(trace.rows.find(r => r.name === 'Accept').values, [true,true,true,true]);
     const grouped = run('P="a"\nQ="b"\nAccept=(P||Q)&&!P');
     assert.deepEqual(grouped.rows.find(r => r.name === 'Accept').values, [false,true,true,false]);
-    assert.throws(() => parseProgram('P="a"\nQ="b"\nN=#(P||Q)'), /prefix count takes one Boolean predicate/);
+    const nested = run('P="a"\nQ="b"\nN=#(P||Q)+#(!P)\nAccept=N>0');
+    assert.deepEqual(nested.rows.find(r => r.name === 'N').values, [1, 3, 5, 6]);
     assert.equal(run('N=1+2-1\nAccept=N==2').accepted, true);
   });
   test(`${base} nested types and dependencies are validated`, () => {

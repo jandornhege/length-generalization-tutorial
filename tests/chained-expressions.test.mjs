@@ -4,11 +4,12 @@ for (const base of ['../site/assets/', '../tutorial_dual/static/web-assets/inter
   const { parseProgram, completions } = await import(base + 'program-text.js');
   const { evaluateBlocks } = await import(base + 'notebook-engine.js');
   const prefix = 'A1 = # "a"\nA2 = # "b"\n';
-  test(`${base} separate comparison rules compose on a Boolean line`, () => {
+  test(`${base} inline comparisons compose like separate Boolean rules`, () => {
     const source = prefix + 'HasB = A2 > 0\nMoreB = A2 > A1\nA3 = HasB && "b" && MoreB';
     const trace = evaluateBlocks(parseProgram(source), [...'abbab'], 'A3');
     assert.deepEqual(trace.rows.find(row => row.name === 'A3').values, [false,false,true,false,true]);
-    assert.throws(() => parseProgram(prefix + 'A3 = A2 > 0 && "b" && A2 > A1'), /cannot contain counts or comparisons/);
+    const inline = evaluateBlocks(parseProgram(prefix + 'A3 = A2 > 0 && "b" && A2 > A1'), [...'abbab'], 'A3');
+    assert.deepEqual(inline.rows.at(-1).values, trace.rows.at(-1).values);
   });
   test(`${base} comparisons suggest operands immediately, with or without spaces`, () => {
     for (const operator of ['==', '!=', '>', '<', '>=', '<=']) {
@@ -55,7 +56,7 @@ for (const base of ['../site/assets/', '../tutorial_dual/static/web-assets/inter
   test(`${base} comparisons reject predicates, including nested operands`, () => {
     for (const rhs of ['A2 > A1', 'A1 < A2', 'A2 == A1', 'A2 > (A1)'])
       assert.throws(() => parseProgram(prefix + 'C = ' + rhs), /requires two number expressions/, rhs);
-    assert.throws(() => parseProgram(prefix + 'C = (A2 > 0) && "b" && A2 > A1'), /cannot contain counts or comparisons/);
+    assert.throws(() => parseProgram(prefix + 'C = (A2 > 0) && "b" && A2 > A1'), /requires two number expressions/);
     assert.doesNotThrow(() => parseProgram(prefix + 'C = A2 > #A1'));
     assert.doesNotThrow(() => parseProgram(prefix + 'Count = #A1+A2'));
     assert.throws(() => parseProgram(prefix + 'Count = #A1+A1'), /requires two number expressions/);

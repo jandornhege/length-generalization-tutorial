@@ -54,9 +54,9 @@
 }
 
 // A visible explanatory box in both output modes.
-#let notation-box(body) = context {
+#let notation-box(body, label: "Semantics of prefix counting") = context {
   if target() == "html" {
-    html.elem("aside", attrs: (class: "notation-box", "aria-label": "Semantics of prefix counting"), body)
+    html.elem("aside", attrs: (class: "notation-box", "aria-label": label), body)
   } else {
     block(width: 100%, inset: 10pt, stroke: 0.6pt + luma(190),
       fill: luma(248), radius: 4pt, breakable: false, body)

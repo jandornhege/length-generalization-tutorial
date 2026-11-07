@@ -1,4 +1,4 @@
-import { parseExpression, inferExpression } from "./expressions.js";
+import { parseExpression, inferGuidedExpression as inferExpression } from "./expressions.js";
 // Cursor-aware completion for the learning editor's grammar. A completion
 // replaces one token, never the rest of a line or any following assignment.
 export function completeProgram(text, cursor, { parse, types, alphabet, extended = false }) {

@@ -1,4 +1,4 @@
-import { expressionNode } from "./expressions.js";
+import { assignmentLines, expressionNode } from "./expressions.js";
 import { completeProgram } from "./completion-engine.js";
 import { TYPES, validateProgram } from './notebook-model.js';
 
@@ -14,10 +14,9 @@ export function collectProgramSymbols(text, input = []) {
 // The guided editor deliberately shares the local evaluator's small grammar.
 export function parseProgram(text, alphabet = ['a', 'b', '(', ')']) {
   const nodes = [];
-  for (const [index, line] of text.split('\n').entries()) {
-    if (!line.trim()) continue;
+  for (const { index, line } of assignmentLines(text)) {
     try {
-      const assignment = line.match(/^\s*([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      const assignment = line.match(/^\s*([A-Za-z][A-Za-z0-9_]*)\s*=(?!=)\s*([\s\S]*?)\s*$/);
       if (!assignment) throw new Error('Use Name = expression.');
       const [, id, rhs] = assignment;
       let m, node;
