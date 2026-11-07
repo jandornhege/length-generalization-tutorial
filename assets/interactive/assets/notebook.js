@@ -1,8 +1,7 @@
+import { attachAutocomplete } from "./autocomplete.js";
+import { parseProgram, completions, collectProgramSymbols } from "./program-text.js";
 import {
   TYPES,
-  isTokenOperand,
-  DEFAULT_ALPHABET,
-  validateAlphabet,
   DYCK,
   CONTAINS,
   BOTH_SYMBOLS,
@@ -10,10 +9,7 @@ import {
   QUESTIONS,
   compile,
   expression,
-  moveBlock,
   references,
-  structuredNode,
-  canonicalNames,
 } from "./notebook-model.js";
 import { evaluateBlocks } from "./notebook-engine.js";
 const $ = (id) => document.getElementById(id);
@@ -32,11 +28,11 @@ const MODES = [
   },
   {
     id: "build",
-    title: "02 · Program builder",
-    short: "Assemble a typed program",
-    heading: "Build with operations",
+    title: "02 · Guided editor",
+    short: "Write with optional suggestions",
+    heading: "Write a program",
     description:
-      "Drag an operation onto the program, or click it to add it. Number operations accept number inputs; yes/no operations accept yes/no inputs. Menus offer only earlier compatible variables. Values update as you change a block.",
+      "Write directly or click the grey syntax hints for help. You can change any line and insert new ones anywhere. Values update as soon as the program is complete.",
   },
   {
     id: "repair",
@@ -83,20 +79,24 @@ const cases = [
   { tokens: "(()", want: false, label: "Unclosed input" },
   { tokens: ")(", want: false, label: "Starts with a close" },
 ];
-let builderAlphabet = [...DEFAULT_ALPHABET];
-let mode = "walk",
+let builderTokens = [..."abba"],
+  builderAlphabet = ["a", "b"],
+  mode = "walk",
   tokens = [..."()(())"],
   step = 0,
   focus = 3,
   question = 0,
   nodes = clone(CONTAINS),
   output = "A3",
-  nextId = 4,
+  outputManuallySelected = false,
+  draft = null,
+  draftError = "",
   repairOp = "==",
   repairJoin = "or",
   caseIndex = 0,
   currentTrace = null,
-  drag = null;
+  builderTraceDetails = null,
+  builderDecisionStatus = null;
 function el(tag, text, cls) {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
@@ -125,10 +125,6 @@ function choice(label, options, value, onChange) {
   wrap.append(select);
   return wrap;
 }
-function displayName(name) {
-  return name.replace(/^([PC])_?(\d+)$/, (_, symbol, index) =>
-    symbol + [...index].map(digit => '₀₁₂₃₄₅₆₇₈₉'[Number(digit)]).join(''));
-}
 function fmt(value) {
   return typeof value === "boolean" ? (value ? "yes" : "no") : String(value);
 }
@@ -145,7 +141,7 @@ function currentOutput() {
   return mode === "build" ? output : "Accept";
 }
 function source() {
-  return compile(currentNodes(), currentOutput(), mode === "build" ? builderAlphabet : DEFAULT_ALPHABET);
+  return compile(currentNodes(), currentOutput(), mode === "build" ? builderAlphabet : ["a", "b", "(", ")"]);
 }
 function rowValue(name, col) {
   return currentTrace?.rows.find((r) => r.name === name)?.values[col];
@@ -156,26 +152,59 @@ function schedule() {
   currentTrace = null;
   $("results").setAttribute("aria-busy", "true");
   $("decision").textContent = "";
+  $("decision").className = mode === "build" ? "decision builder-inline-decision" : "decision";
   $("inspection").textContent = "";
-  $("source-code").textContent = source();
+  if (mode === "build") {
+    builderAlphabet = builderSymbols();
+    const inputIssue = !tokens.length ? "Enter an input string to see its decision."
+      : tokens.length > 16 ? "Use an input string of at most 16 symbols." : "";
+    $("sequence-input")?.setAttribute("aria-invalid", String(Boolean(inputIssue)));
+    if (inputIssue) {
+      $("results").setAttribute("aria-busy", "false");
+      $("values").replaceChildren();
+      $("source-code").textContent = draft ?? "";
+      $("runtime-status").textContent = "Input not evaluated";
+      $("decision").textContent = inputIssue;
+      $("decision").classList.add("input-invalid");
+      return;
+    }
+  }
+  if (mode === "build" && draftError) {
+    $("results").setAttribute("aria-busy", "false");
+    $("values").replaceChildren();
+    $("source-code").textContent = draft;
+    $("runtime-status").textContent = "Waiting for a complete program";
+    $("inspection").textContent = "Complete this edit to see updated values.";
+    $("decision").textContent = "Complete the program to see its decision.";
+    return;
+  }
   if (mode === "tokens") $("mode-workspace").replaceChildren();
   try {
-    currentTrace = evaluateBlocks(currentNodes(), [...tokens], currentOutput(), mode === "build" ? builderAlphabet : DEFAULT_ALPHABET);
+    $("source-code").textContent = source();
+    currentTrace = evaluateBlocks(currentNodes(), [...tokens], currentOutput(), mode === "build" ? builderAlphabet : ["a", "b", "(", ")"]);
     $("results").setAttribute("aria-busy", "false");
     $("runtime-status").textContent = "Live values · evaluated locally · no network needed";
     renderResults();
   } catch (error) {
+    if (mode === "build") $("source-code").textContent = draft ?? "";
+    $("results").setAttribute("aria-busy", "false");
     $("runtime-status").textContent = error.message;
     $("inspection").textContent = "No values are shown for this edit.";
+    if (mode === "build") $("decision").textContent = "No decision available for this edit.";
     document
       .querySelectorAll(".block-values")
       .forEach((node) => (node.textContent = "Unavailable"));
   }
 }
 function setMode(id) {
+  if (mode === "build" && id !== "build") restoreBuilderTrace();
   mode = id;
-  tokens = [...(id === "build" ? "abba" : id === "repair" ? cases[caseIndex].tokens : "()(())")];
-  if (id === "build") tokens = tokens.map(t => builderAlphabet.includes(t) ? t : builderAlphabet[0]);
+  $("experiment").dataset.mode = id;
+  $("results").classList.toggle("results-builder", id === "build");
+  if (id !== "build") document.getElementById("builder-syntax-reference")?.remove();
+  if (id === "build") {
+    tokens = [...builderTokens];
+  } else tokens = [...(id === "repair" ? cases[caseIndex].tokens : "()(())")];
   focus = Math.min(3, tokens.length - 1);
   const config = MODES.find((m) => m.id === mode);
   $("mode-kicker").textContent = config.short;
@@ -199,6 +228,20 @@ function setMode(id) {
   schedule();
   history.replaceState(null, "", `#${id}`);
 }
+function restoreBuilderTrace() {
+  if (!builderTraceDetails) return;
+  const results = $("results");
+  const resultDecision = builderDecisionStatus || $("decision");
+  const runtime = document.querySelector(".runtime-bar");
+  resultDecision.classList.remove("builder-inline-decision");
+  results.querySelector(".result-header").append(resultDecision);
+  $("mode-workspace").insertAdjacentElement("afterend", results);
+  results.insertAdjacentElement("afterend", runtime);
+  $("interaction-message").insertAdjacentElement("beforebegin", $("input-area"));
+  builderTraceDetails.remove();
+  builderTraceDetails = null;
+  builderDecisionStatus = null;
+}
 for (const m of MODES) {
   const b = button("", () => setMode(m.id), "");
   b.dataset.mode = m.id;
@@ -209,10 +252,12 @@ for (const m of MODES) {
 $("reset-design").onclick = () => {
   if (mode === "walk") step = 0;
   if (mode === "build") {
-    builderAlphabet = [...DEFAULT_ALPHABET];
+    builderTokens = [..."abba"];
+    builderAlphabet = ["a", "b"];
     nodes = clone(CONTAINS);
     output = "A3";
-    nextId = 4;
+    outputManuallySelected = false;
+    draft = null;
   }
   if (mode === "repair") {
     repairOp = "==";
@@ -222,58 +267,57 @@ $("reset-design").onclick = () => {
   if (mode === "predict") question = 0;
   setMode(mode);
 };
+function builderSymbols(text = draft ?? "") {
+  const symbols = collectProgramSymbols(text, tokens);
+  return symbols.length ? symbols : ["a", "b"];
+}
 function renderInput() {
   const area = $("input-area");
   area.replaceChildren();
   const box = el("div", undefined, "input-workbench"),
-    head = el("div", undefined, "input-heading");
-  head.append(
-    el("h3", "Input sequence"),
-    el("p", `${tokens.length} tokens · positions 0–${tokens.length - 1}`, "small"),
-  );
-  if (mode === 'build') {
-    const settings = el('form', undefined, 'alphabet-settings');
-    const label = el('label', 'Alphabet Σ');
-    const input = el('input');
-    input.type = 'text'; input.value = builderAlphabet.join(' ');
-    input.setAttribute('aria-label', 'Alphabet symbols separated by spaces');
-    input.title = 'Separate symbols with spaces, for example: a b c';
-    input.required = true;
-    label.append(input);
-    const apply = el('button', 'Apply', 'secondary'); apply.type = 'submit';
-    settings.append(label, apply);
-    settings.onsubmit = event => {
-      event.preventDefault();
-      const next = input.value.trim().split(/\s+/).filter(Boolean);
-      try { validateAlphabet(next); } catch (error) {say(error.message, true); return;}
-      const remap = token => next.includes(token) ? token : next[builderAlphabet.indexOf(token)] || next[0];
-      let changed = tokens.some(t => !next.includes(t)) || nodes.some(n => n.token && !next.includes(n.token));
-      tokens = tokens.map(remap);
-      nodes = nodes.map(n => {
-        const updated = {...n};
-        if (n.token) updated.token = remap(n.token);
-        for (const key of ['input', 'left', 'right'])
-          if (isTokenOperand(n[key])) {
-            const token = remap(n[key].slice(6));
-            if (token !== n[key].slice(6)) changed = true;
-            updated[key] = `token:${token}`;
-          }
-        return updated;
-      });
-      builderAlphabet = next;
-      renderInput(); renderBuilder(); schedule();
-      say(changed ? 'Symbols removed from the alphabet were replaced in the input and program.' : '');
-    };
-    area.append(settings);
-  }
+    head = el("div", undefined, "input-heading"),
+    sequenceSummary = el("p", undefined, "sequence-summary");
+  sequenceSummary.id = "sequence-summary";
+  const updateSequenceSummary = () => {
+    if (mode !== "build") {
+      sequenceSummary.textContent = `${tokens.length} tokens · positions 0–${tokens.length - 1}`;
+      return;
+    }
+    sequenceSummary.textContent = `${tokens.length} ${tokens.length === 1 ? "token" : "tokens"} · spaces ignored`;
+  };
+  const inputHeading = el("h3", mode === "build" ? "Input string" : "Input sequence");
+  inputHeading.id = "input-string-heading";
+  head.append(inputHeading);
+  updateSequenceSummary();
   box.append(head);
-  const strip = el("div", undefined, "token-buttons");
-  strip.id = "input-tokens";
-  const prediction = mode === "predict" ? QUESTIONS[question] : null;
-  tokens.forEach((t, i) => {
-    const b = button(
-      "",
-      () => {
+
+  if (mode === "build") {
+    box.classList.add("builder-input");
+    head.append(sequenceSummary);
+    const input = el("input");
+    input.type = "text";
+    input.id = "sequence-input";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.value = tokens.join("");
+    input.setAttribute("aria-labelledby", "input-string-heading");
+    input.setAttribute("aria-describedby", "sequence-summary decision");
+    input.placeholder = "Enter an input string…";
+    input.oninput = () => {
+      // Each non-space Unicode code point is one token; spaces are visual separators.
+      tokens = Array.from(input.value).filter(token => !/\s/u.test(token));
+      builderTokens = [...tokens];
+      focus = Math.max(0, tokens.length - 1);
+      updateSequenceSummary();
+      schedule();
+    };
+    box.append(input);
+  } else {
+    const strip = el("div", undefined, "token-buttons");
+    strip.id = "input-tokens";
+    const prediction = mode === "predict" ? QUESTIONS[question] : null;
+    tokens.forEach((t, i) => {
+      const b = button("", () => {
         if (mode === "tokens") {
           tokens[i] = t === "(" ? ")" : "(";
           focus = i;
@@ -281,7 +325,10 @@ function renderInput() {
           schedule();
           say(`Flipped position ${i}. Earlier prefix values stay unchanged.`);
         } else if (mode === "build") {
-          tokens[i] = builderAlphabet[(builderAlphabet.indexOf(t) + 1) % builderAlphabet.length];
+          const alphabet = [...new Set(tokens)];
+          const current = alphabet.indexOf(t);
+          tokens[i] = alphabet[(current + 1) % alphabet.length];
+          builderTokens = [...tokens];
           renderInput();
           schedule();
         } else {
@@ -289,32 +336,26 @@ function renderInput() {
           renderInput();
           renderResults();
         }
-      },
-      "input-token",
-    );
-    b.dataset.position = i;
-    b.setAttribute(
-      "aria-label",
-      `${mode === "tokens" || mode === "build" ? "Flip" : "Inspect"} token ${t} at position ${i}`,
-    );
-    b.setAttribute("aria-pressed", String(i === (prediction ? prediction.col : focus)));
-    b.append(el("span", t, "symbol"), el("small", `position ${i}`));
-    if (prediction) {
-      b.classList.toggle("outside", i > prediction.col);
-      b.disabled = true;
-    }
-    strip.append(b);
-  });
-  box.append(strip);
-  const hint =
-    mode === "tokens"
+      }, "input-token");
+      b.dataset.position = i;
+      b.setAttribute("aria-label", `${mode === "tokens" ? "Flip" : "Inspect"} token ${t} at position ${i}`);
+      b.setAttribute("aria-pressed", String(i === (prediction ? prediction.col : focus)));
+      b.append(el("span", t, "symbol"), el("small", `position ${i}`));
+      if (prediction) {
+        b.classList.toggle("outside", i > prediction.col);
+        b.disabled = true;
+      }
+      strip.append(b);
+    });
+    box.append(strip, sequenceSummary);
+    const hint = mode === "tokens"
       ? "Click any token to flip it. The numbers below each token are Opens / Closes."
-      : mode === "build"
-        ? "Click a token to cycle through the alphabet."
-        : mode === "predict"
-          ? "The outlined box is the queried position. Muted tokens lie outside its prefix."
-          : "Select a token to inspect the prefix ending there.";
-  box.append(el("p", hint, "small"));
+      : mode === "predict"
+        ? "The outlined box is the queried position. Muted tokens lie outside its prefix."
+        : "Select a token to inspect the prefix ending there.";
+    box.append(el("p", hint, "small"));
+  }
+
   const actions = el("div", undefined, "toolbar");
   if (mode === "walk") {
     actions.append(
@@ -322,9 +363,8 @@ function renderInput() {
       button("Counterexample: ())(()", () => changeInput("())(()")),
     );
   }
-  if (mode === "tokens" || mode === "build") {
-    const alphabet = mode === "tokens" ? ["(", ")"] : builderAlphabet;
-    for (const t of alphabet) {
+  if (mode === "tokens") {
+    for (const t of ["(", ")"]) {
       const b = button(`Add ${t}`, () => {
         tokens.push(t);
         focus = tokens.length - 1;
@@ -341,12 +381,12 @@ function renderInput() {
       schedule();
     });
     remove.disabled = tokens.length <= 1;
-    actions.append(remove);
-    if (mode === "tokens") actions.append(button("Restore ()(())", () => changeInput("()(())")));
+    actions.append(remove, button("Restore ()(())", () => changeInput("()(())")));
   }
   box.append(actions);
   area.append(box);
 }
+
 function changeInput(text) {
   tokens = [...text];
   focus = Math.min(focus, tokens.length - 1);
@@ -396,7 +436,7 @@ function renderTable(rows) {
     const tr = body.insertRow();
     tr.dataset.variable = row.name;
     if (mode === "walk" && row.name === DYCK[step].id) tr.className = "focus-row";
-    const label = el("th", displayName(row.name));
+    const label = el("th", row.name);
     label.scope = "row";
     tr.append(label);
     row.values.forEach((v, i) => {
@@ -443,12 +483,12 @@ function inspect(name, col) {
 function renderResults() {
   if (!currentTrace) return;
   $("values").replaceChildren();
-  $("decision").className = "decision";
+  $("decision").className = mode === "build" ? "decision builder-inline-decision" : "decision";
   if (mode === "build") {
-    $("result-heading").textContent = "Program output";
+    $("result-heading").textContent = "Execution trace";
     $("result-intro").textContent =
-      "Each row below shows a program variable in input order. The selected yes/no variable determines the decision at the last token.";
-    $("values").append(renderTable(currentTrace.rows.filter(r => r.name !== "Result")));
+      "Each assignment below shows its vector in input order. The selected yes/no variable determines the decision at the last token.";
+    $("values").append(renderTable(currentTrace.rows.filter(row => row.name !== "Result")));
     if (!output) {
       $("decision").textContent = "No decision selected";
       $("inspection").textContent =
@@ -469,264 +509,169 @@ function renderResults() {
     $("decision").textContent = "Decision introduced at step 7";
     inspect(DYCK[step].id, focus);
   } else {
-    $("decision").textContent = currentTrace.accepted
-      ? "Accepted at the last token"
-      : "Rejected at the last token";
+    const acceptedLabel = currentTrace.accepted ? "Accepted" : "Rejected";
+    $("decision").textContent = mode === "build"
+      ? `${acceptedLabel} input “${tokens.join("")}”`
+      : `${acceptedLabel} at the last token`;
     $("decision").classList.add(currentTrace.accepted ? "yes" : "no");
   }
   if (mode === "repair") renderRepairFeedback();
   if (mode === "tokens") renderLiveSummary();
 }
-// Block builder: all choices are typed, generated names are unique, and moves
-// are committed only after checking every dependency in the resulting order.
-const operations = [
-  ["token", "Token predicate Qₐ", "yes/no"],
-  ["count", "Prefix count #P", "number"],
-  ["compare", "Count comparison ≤", "yes/no"],
-  ["and", "Conjunction ∧", "yes/no"],
-  ["or", "Disjunction ∨", "yes/no"],
-  ["not", "Negation ¬", "yes/no"],
-  ["add", "Addition +", "number"],
-  ["subtract", "Subtraction −", "number"],
-  ["constant", "Count constant 1", "number"],
-  ["true", "Boolean constant ⊤", "yes/no"],
-];
-function available(kind) {
-  return (
-    !["and", "or", "not"].includes(kind) || nodes.some((n) => TYPES[n.kind] === "bool")
-  );
-}
-function addBlock(kind) {
-  if (nodes.length >= 24) {
-    say("The learning editor is limited to 24 blocks.", true);
-    return;
-  }
-  if (!available(kind)) {
-    say("First add a Boolean predicate, such as “Token predicate Qₐ”.", true);
-    return;
-  }
-  const bools = nodes.filter((n) => TYPES[n.kind] === "bool").map((n) => n.id),
-    ints = nodes.filter((n) => TYPES[n.kind] === "int").map((n) => n.id);
-  const n = { id: `A${nextId++}`, kind };
-  if (["token", "tokenCount"].includes(kind)) n.token = tokens.includes("a") ? "a" : "(";
-  if (kind === "count" && !bools.length) {
-    n.kind = "tokenCount";
-    n.token = tokens.includes("a") ? "a" : "(";
-  } else if (["count", "not"].includes(kind)) n.input = bools.at(-1);
-  if (["and", "or"].includes(kind)) {
-    n.left = bools.at(-1);
-    n.right = bools.at(-2) || bools.at(-1);
-  }
-  if (["compare", "add", "subtract"].includes(kind)) {
-    n.left = ints.at(-1) || "0";
-    n.right = "0";
-    if (kind === "compare") n.op = ">";
-  }
-  nodes.push(n);
-  if (TYPES[kind] === "bool") output = n.id;
-  renderBuilder();
-  schedule();
-  say(`Added ${n.id}. Change its inputs in the menus; values update automatically.`);
-}
-function reorder(from, to) {
-  try {
-    nodes = moveBlock(nodes, from, to);
-    renderBuilder();
-    schedule();
-    say("Moved the block. Dependencies remain defined before use.");
-  } catch {
-    say("That move would use a variable before it is defined. The order was kept unchanged.", true);
-  }
-}
-function drop(e, to) {
-  e.preventDefault();
-  document.querySelectorAll(".drag-over").forEach((n) => n.classList.remove("drag-over"));
-  if (!drag) return;
-  if (drag.kind) addBlock(drag.kind);
-  else reorder(drag.index, to);
-  drag = null;
-}
 function renderBuilder() {
-  ({nodes, output} = canonicalNames(nodes, output));
+  say("");
+  document.getElementById("builder-syntax-reference")?.remove();
   const area = $("mode-workspace");
   area.replaceChildren();
-  const tools = el('div', undefined, 'program-toolbar');
-  tools.append(choice('Program', [
-    ['', 'Custom program'], ['contains', 'Contains a'], ['dyck', 'Balanced parentheses'],
-    ['both', 'Contains a and b'], ['before', 'An a before a b'], ['empty', 'Empty program'],
-  ], '', value => {
-    if (!value) return;
-    nodes = clone({contains: CONTAINS, dyck: DYCK, both: BOTH_SYMBOLS, before: A_BEFORE_B, empty: []}[value]);
-    output = nodes.filter(n => TYPES[n.kind] === 'bool').at(-1)?.id || '';
-    builderAlphabet = value === 'empty' ? builderAlphabet : value === 'dyck' ? ['(', ')'] : ['a', 'b'];
-    tokens = value === 'empty' ? [builderAlphabet[0]] : [...(value === 'dyck' ? '()(())' : 'abba')];
-    renderInput(); renderBuilder(); schedule();
-  }));
-  area.append(tools);
-  const program = el('div', undefined, 'structured-program');
-  program.setAttribute('aria-label', 'Structured C-RASP program');
-  const optionsFor = index => operations.filter(([kind]) => {
-    try { structuredNode(nodes, index, kind, 'NewLine', builderAlphabet); return true; } catch { return false; }
-  }).map(([kind, name]) => [kind, name]);
-  nodes.forEach((n, index) => {
-    const line = el('div', undefined, 'program-line');
-    line.dataset.block = n.id;
-    line.append(el('span', String(index + 1), 'line-number'));
-    const statement = el('div', undefined, 'program-statement');
-    statement.append(el('span', `${displayName(n.id)}(i)`, 'variable'), el('span', ':=', 'assignment'));
-    // The expression template selector doubles as the operator: no separate cards.
-    const notation = {token: 'Q', count: '#[j ≤ i]', tokenCount: '#[j ≤ i]',
-      compare: 'Compare', and: '∧', or: '∨', not: '¬', add: '+', subtract: '−', constant: '1', true: '⊤'};
-    const currentKind = n.kind === 'tokenCount' ? 'count' : n.kind;
-    const operator = choice(`Operation for ${n.id}`, optionsFor(index).map(([kind, name]) =>
-      [kind, kind === currentKind ? notation[n.kind] : name]), currentKind, kind => {
-        nodes[index] = structuredNode(nodes, index, kind, n.id, builderAlphabet);
-        renderBuilder(); schedule();
-      });
-    operator.className = 'inline-field operation-field';
-    operator.querySelector('select').setAttribute('aria-label', `Operation for ${n.id}`);
-    operator.firstChild.remove();
-    const earlier = nodes.slice(0, index);
-    const bools = [
-      ...earlier.filter(x => TYPES[x.kind] === 'bool').map(x => [x.id, `${displayName(x.id)}(i)`]),
-      ...builderAlphabet.map(t => [`token:${t}`, `Q_${t}(i)`]),
-    ];
-    const ints = [['0', '0'], ...earlier.filter(x => TYPES[x.kind] === 'int').map(x => [x.id, `${displayName(x.id)}(i)`])];
-    const operand = (key, options) => {
-      const control = choice(`${n.id} ${key}`, options, n[key], value => {n[key] = value; renderBuilder(); schedule();});
-      control.className = 'inline-field';
-      control.querySelector('select').setAttribute('aria-label', `${n.id} ${key}`);
-      control.firstChild.remove();
-      if (isTokenOperand(n[key])) {
-        control.classList.add('typeset-predicate');
-        const rendered = el('span', undefined, 'predicate-display');
-        rendered.setAttribute('aria-hidden', 'true');
-        rendered.append(el('span', 'Q'), el('sub', n[key].slice(6)), el('span', '(i)'));
-        control.append(rendered);
-      }
-      return control;
-    };
-    if (['compare', 'add', 'subtract', 'and', 'or'].includes(n.kind)) {
-      const opts = ['compare', 'add', 'subtract'].includes(n.kind) ? ints : bools;
-      statement.append(operand('left', opts));
-      if (n.kind === 'compare') {
-        const comparison = choice(`Operation for ${n.id}`, [
-          ...[['<','<'], ['<=','≤'], ['==','='], ['>=','≥'], ['>','>']].map(([value,label]) => [`op:${value}`, label]),
-          ...optionsFor(index).filter(([kind]) => kind !== 'compare').map(([kind,label]) => [`kind:${kind}`, label]),
-        ], `op:${n.op}`, value => {
-          if (value.startsWith('op:')) n.op = value.slice(3);
-          else nodes[index] = structuredNode(nodes, index, value.slice(5), n.id, builderAlphabet);
-          renderBuilder(); schedule();
-        });
-        comparison.className = 'inline-field operation-field';
-        comparison.querySelector('select').setAttribute('aria-label', `Operation for ${n.id}`);
-        comparison.firstChild.remove();
-        statement.append(comparison);
-      } else statement.append(operator);
-      statement.append(operand('right', opts));
-    } else {
-      statement.append(operator);
-      if (n.kind === 'token') {
-        const symbol = operand('token', builderAlphabet);
-        symbol.classList.add('token-subscript');
-        const indicator = el('span', undefined, 'token-indicator');
-        indicator.append(operator, symbol, el('span', '(i)'));
-        statement.append(indicator);
-      }
-      if (n.kind === 'not') statement.append(operand('input', bools));
-      if (n.kind === 'count' || n.kind === 'tokenCount') {
-        const value = `${n.position || 'j'}:` + (n.kind === 'count' ? `predicate:${n.input}` : `token:${n.token}`);
-        const select = choice(`${n.id} counted predicate`, [
-          ...['j', 'i'].flatMap(position => [
-            ...builderAlphabet.map(t => [`${position}:token:${t}`, `Q_${t}(${position})`]),
-            ...earlier.filter(x => TYPES[x.kind] === 'bool').map(x => [`${position}:predicate:${x.id}`, `${displayName(x.id)}(${position})`]),
-          ]),
-        ], value, selected => {
-          n.position = selected[0];
-          selected = selected.slice(2);
-          if (selected.startsWith('token:')) {n.kind = 'tokenCount'; n.token = selected.slice(6); delete n.input;}
-          else {n.kind = 'count'; n.input = selected.slice(10); delete n.token;}
-          renderBuilder(); schedule();
-        });
-        select.className = 'inline-field';
-        const predicateMenu = select.querySelector('select');
-        predicateMenu.setAttribute('aria-label', `${n.id} counted predicate`);
-        const defined = el('optgroup');
-        defined.label = 'Earlier predicates';
-        const indicators = el('optgroup');
-        indicators.label = 'Token indicators';
-        for (const option of [...predicateMenu.options]) {
-          (option.value.slice(2).startsWith('predicate:') ? defined : indicators).append(option);
-        }
-        if (defined.children.length) predicateMenu.append(defined);
-        predicateMenu.append(indicators);
-        predicateMenu.value = value;
-        select.firstChild.remove();
-        if (n.kind === 'tokenCount') {
-          select.classList.add('typeset-predicate');
-          const rendered = el('span', undefined, 'predicate-display');
-          rendered.setAttribute('aria-hidden', 'true');
-          rendered.append(el('span', 'Q'), el('sub', n.token), el('span', `(${n.position || 'j'})`));
-          select.append(rendered);
-        }
-        statement.append(select);
-      }
-    }
-    line.append(statement);
-    const remove = button('×', () => {
-      nodes.splice(index, 1);
-      if (output === n.id) output = nodes.filter(x => TYPES[x.kind] === 'bool').at(-1)?.id || '';
-      renderBuilder(); schedule();
-    }, 'remove-line');
-    remove.setAttribute('aria-label', `Delete line ${n.id}`);
-    remove.disabled = nodes.some(other => references(other).includes(n.id));
-    remove.title = remove.disabled ? 'Used by a later line' : 'Delete line';
-    line.append(remove);
-    program.append(line);
-  });
-  const add = el('details', undefined, 'add-expression');
-  const trigger = el('summary', nodes.length >= 24 ? '24-line limit reached' : '+ Add a line');
-  add.append(trigger);
-  if (nodes.length >= 24) {
-    trigger.setAttribute('aria-disabled', 'true');
-    trigger.addEventListener('click', event => event.preventDefault());
-  } else {
-    const panel = el('div', undefined, 'expression-picker');
-    const notation = {token:'Qₐ', count:'#[j ≤ i] P(j)', compare:'C₁ ≤ C₂',
-      and:'P₁ ∧ P₂', or:'P₁ ∨ P₂', not:'¬P', add:'C₁ + C₂', subtract:'C₁ − C₂',
-      constant:'1', true:'⊤'};
-    const labels = {token:'Token predicate',count:'Prefix count',compare:'Comparison',
-      and:'Conjunction',or:'Disjunction',not:'Negation',add:'Addition',subtract:'Subtraction',
-      constant:'Count constant',true:'Boolean constant'};
-    for (const [type, title] of [['bool','Predicates'], ['int','Counts']]) {
-      const group = el('div', undefined, 'expression-group');
-      group.append(el('div', title, 'expression-group-title'));
-      for (const [kind] of optionsFor(nodes.length).filter(([kind]) => TYPES[kind] === type)) {
-        const option = button('', () => {
-          let id;
-          do { id = `${type === 'int' ? 'C' : 'P'}${nextId++}`; } while (nodes.some(n => n.id === id));
-          const node = structuredNode(nodes, nodes.length, kind, id, builderAlphabet);
-          nodes.push(node);
-          if (type === 'bool') output = node.id;
-          renderBuilder(); schedule();
-          const lastLine = $('mode-workspace').querySelector('.program-line:last-of-type');
-          lastLine?.querySelector('select')?.focus();
-        }, 'expression-option');
-        option.setAttribute('aria-label', `Add ${labels[kind].toLowerCase()}`);
-        option.append(el('span', notation[kind], 'expression-symbol'), el('span', labels[kind], 'expression-name'));
-        group.append(option);
-      }
-      panel.append(group);
-    }
-    add.append(panel);
-    add.addEventListener('keydown', event => {
-      if (event.key === 'Escape') {add.open = false; trigger.focus(); event.stopPropagation();}
-    });
+  if (!builderTraceDetails) {
+    builderTraceDetails = el("details", undefined, "builder-trace");
+    builderTraceDetails.append(el("summary", "Show full execution trace"));
+    const resultDecision = $("decision");
+    builderDecisionStatus = resultDecision;
+    resultDecision.classList.add("builder-inline-decision");
+    resultDecision.remove();
+    builderTraceDetails.append($("results"), document.querySelector(".runtime-bar"));
   }
-  program.append(add);
-  area.append(program);
-  area.append(choice('Output', [['','Choose a Boolean result'], ...nodes.filter(n => TYPES[n.kind] === 'bool').map(n => [n.id, `${displayName(n.id)}(|w|)`])], output, value => {output = value; schedule();}));
+  const resultDecision = builderDecisionStatus || $("decision");
+  const examplePrograms = el("div", undefined, "example-program-panel");
+  const startEmpty = button("Start empty", () => {
+    nodes = [];
+    output = "";
+    outputManuallySelected = false;
+    draft = null;
+    renderBuilder();
+    schedule();
+  });
+  startEmpty.classList.add("example-start-empty");
+  const examples = choice(
+    "Load example program",
+    [
+      ["", "Choose an example…"],
+      ["contains", "Contains a"],
+      ["both", "Contains both a and b"],
+      ["before", "An a occurs before a b"],
+      ["dyck", "Balanced parentheses"],
+    ],
+    "",
+    value => {
+      if (!value) return;
+      nodes = clone(value === "contains" ? CONTAINS : value === "both" ? BOTH_SYMBOLS : value === "before" ? A_BEFORE_B : DYCK);
+      output = value === "contains" ? "A3" : "Accept";
+      outputManuallySelected = false;
+      tokens = [...(value === "contains" ? "abba" : value === "dyck" ? "()(())" : "ab")];
+      builderTokens = [...tokens];
+      draft = null;
+      renderInput();
+      renderBuilder();
+      schedule();
+    },
+  );
+  examples.className = "example-program-select";
+  examplePrograms.append(examples, startEmpty);
+  const reference = el("details", undefined, "syntax-reference");
+  reference.id = "builder-syntax-reference";
+  reference.append(el("summary", "Syntax reference"));
+  const referenceIntro = el("p", "One assignment per line. Names are unique and can refer only to earlier assignments.", "syntax-reference-intro");
+  reference.append(referenceIntro);
+  const referenceGroups = [
+    ["Variable names", [
+      ["Name = expression", "Define a variable. A name starts with a letter and may contain letters, digits and underscores."],
+    ]],
+    ["Boolean valued variables", [
+      ['"a"', "True at positions containing the symbol a. Write symbols in double quotes, including punctuation."],
+      ["!P", "Negate the yes/no value of P."],
+      ["P && Q", "True when both Boolean operands P and Q are true."],
+      ["P || Q", "True when either Boolean operand P or Q is true."],
+      ["(P)", "Group a Boolean expression. Boolean functions may nest with other Boolean functions and token predicates."],
+      ["true, false", "Constant yes and no predicates."],
+      ["<, <=, ==, !=, >=, >", "Compare two number values; each comparison produces a Boolean value."],
+    ]],
+    ["Count valued variables", [
+      ["#P", "Count positions where the Boolean predicate P is true, from the start through the current token."],
+      ["0, 1, 42", "Nonnegative integer constants."],
+      ["N", "An earlier numeric variable or count."],
+      ["N + M", "Add the two number operands N and M."],
+      ["N - M", "Subtract number operand M from number operand N."],
+      ["(N)", "Group a number expression without changing its value."],
+      ["N if P else M", "Choose numeric expression N when predicate P is true; otherwise choose numeric expression M."],
+    ]],
+  ];
+  for (const [title, rows] of referenceGroups) {
+    const section = el("section", undefined, "syntax-reference-group");
+    section.append(el("h4", title));
+    const table = el("table", undefined, "syntax-reference-table");
+    const body = table.createTBody();
+    for (const [syntax, meaning] of rows) {
+      const row = body.insertRow();
+      const sample = el("code", syntax);
+      const syntaxCell = el("th");
+      syntaxCell.scope = "row";
+      syntaxCell.append(sample);
+      row.append(syntaxCell, el("td", meaning));
+    }
+    section.append(table);
+    reference.append(section);
+  }
+  const editor = el("textarea", undefined, "guided-program");
+  editor.id = "guided-program";
+  editor.setAttribute("aria-label", "C-RASP program");
+  editor.spellcheck = false;
+  editor.autocomplete = "off";
+  editor.wrap = "off";
+  editor.setAttribute("autocapitalize", "off");
+  editor.setAttribute("autocorrect", "off");
+  editor.value = draft ?? nodes.map(n => `${n.id} = ${expression(n)}`).join("\n");
+  draft = editor.value;
+  const editorHeading = el("h3", "Your program", "program-editor-heading");
+  const suggestionsToggle = el("label", undefined, "suggestions-toggle");
+  const suggestionsCheckbox = el("input");
+  suggestionsCheckbox.type = "checkbox";
+  suggestionsCheckbox.checked = true;
+  suggestionsCheckbox.setAttribute("aria-label", "Suggestions");
+  suggestionsToggle.append(suggestionsCheckbox, document.createTextNode(" Suggestions"));
+  const editorHeader = el("div", undefined, "program-editor-header");
+  editorHeader.append(editorHeading, suggestionsToggle);
+  const feedback = el("p", "", "editor-feedback");
+  feedback.setAttribute("role", "status");
+  const decision = el("div", undefined, "builder-output");
+  const update = () => {
+    draft = editor.value;
+    builderAlphabet = builderSymbols();
+    try {
+      nodes = parseProgram(draft, builderAlphabet);
+      draftError = "";
+      const booleanNames = nodes.filter(n => TYPES[n.kind] === "bool").map(n => n.id);
+      if (outputManuallySelected && !booleanNames.includes(output)) outputManuallySelected = false;
+      if (!outputManuallySelected) output = booleanNames.at(-1) || "";
+      feedback.textContent = "";
+      feedback.classList.remove("is-error");
+      decision.replaceChildren(choice("Decision at last position of", [["", "No decision yet"], ...nodes.filter(n => TYPES[n.kind] === "bool").map(n => n.id)], output, v => { output = v; outputManuallySelected = true; schedule(); }));
+    } catch (error) {
+      draftError = error.message;
+      const guided = /Complete a token|Use Name =/.test(draftError);
+      feedback.textContent = guided ? `${draftError.split(":")[0]} · Finish this assignment to update the values.` : draftError;
+      feedback.classList.toggle("is-error", document.activeElement !== editor);
+      decision.replaceChildren();
+    }
+    schedule();
+  };
+  editor.addEventListener("input", update);
+  area.append(examplePrograms, editorHeader, editor, feedback, decision);
+  area.insertAdjacentElement("afterend", $("input-area"));
+  $("input-area").insertAdjacentElement("afterend", resultDecision);
+  resultDecision.insertAdjacentElement("afterend", builderTraceDetails);
+  builderTraceDetails.insertAdjacentElement("afterend", reference);
+  editor.addEventListener("blur", () => feedback.classList.toggle("is-error", Boolean(draftError)));
+  const setSuggestionsDisabled = attachAutocomplete(
+    editor,
+    (text = editor.value, cursor = editor.selectionStart) => completions(text, cursor, builderSymbols(text)),
+    text => { try { parseProgram(text, builderSymbols(text)); return true; } catch { return false; } },
+  );
+  setSuggestionsDisabled(false);
+  suggestionsCheckbox.addEventListener("change", () => setSuggestionsDisabled(!suggestionsCheckbox.checked));
+  update();
 }
+
 function renderRepair() {
   const area = $("mode-controls");
   area.replaceChildren();
@@ -887,11 +832,6 @@ $("toggle-code").onclick = () => {
   $("toggle-code").setAttribute("aria-expanded", String(!hidden));
   $("toggle-code").textContent = hidden ? "View generated C-RASP" : "Hide generated C-RASP";
 };
-$("open-editor").onclick = () => {
-  (embeddedMode ? window.top : window).location.href =
-    "text-editor.html#program=" +
-    encodeURIComponent(JSON.stringify({ source: source(), tokens: tokens.join(" ") }));
-};
 setMode(
   embeddedMode ||
     (MODES.some((m) => m.id === location.hash.slice(1)) ? location.hash.slice(1) : "walk"),
@@ -899,6 +839,11 @@ setMode(
 if (embeddedMode) {
   $("reset-design").textContent =
     embeddedMode === "walk" ? "Restart walkthrough" : "Reset playground";
+  if (embeddedMode === "build") {
+    document.title = "C-RASP interactive editor";
+    document.querySelectorAll("body > header, .skip, .notebook-intro, .mode-nav, .design-notes")
+      .forEach(element => element.remove());
+  }
   let previousHeight = 0;
   const notifyHeight = () => {
     const height = Math.ceil(

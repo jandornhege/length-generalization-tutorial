@@ -1,3 +1,4 @@
+import { inferExpression, expressionReferences, printExpression } from "./expressions.js";
 export const DEFAULT_ALPHABET = ['a', 'b', '(', ')'];
 export function validateAlphabet(alphabet) {
   if (!Array.isArray(alphabet) || !alphabet.length || alphabet.length > 16 ||
@@ -9,6 +10,8 @@ export function validateAlphabet(alphabet) {
 // A small typed subset of C-RASP for the visual editor. This compiles syntax;
 // all vector evaluation is performed by the original Python interpreter.
 export const TYPES = {
+  expressionBool: "bool",
+  expressionInt: "int",
   token: "bool",
   tokenCount: "int",
   count: "int",
@@ -36,9 +39,11 @@ export const CONTAINS = [
   { id: "A3", kind: "compare", left: "A2", op: ">", right: "0" },
 ];
 export const isTokenOperand = value => typeof value === "string" && value.startsWith("token:");
-const operandSource = value => isTokenOperand(value) ? JSON.stringify(value.slice(6)) : value;
+const operandSource = value => isTokenOperand(value)
+  ? JSON.stringify(value.slice(6)) : value;
 
 export function references(node) {
+  if (node.tree) return expressionReferences(node.tree);
   if (node.kind === "count" || node.kind === "not") return isTokenOperand(node.input) ? [] : [node.input];
   if (["compare", "and", "or", "add", "subtract"].includes(node.kind))
     return [node.left, node.right].filter((x) => x !== "0" && !isTokenOperand(x));
@@ -60,6 +65,9 @@ export function validateProgram(nodes, alphabet = DEFAULT_ALPHABET) {
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(n.id) || n.id === "Result" || seen.has(n.id))
       throw new Error("Variable names must be unique and valid.");
     if (!Object.hasOwn(TYPES, n.kind)) throw new Error("Unknown block.");
+    if (n.kind === "expressionBool" || n.kind === "expressionInt") {
+      if (inferExpression(n.tree, seen, alphabet) !== TYPES[n.kind]) throw new Error("Expression type changed.");
+    }
     if (["token", "tokenCount"].includes(n.kind) && !alphabet.includes(n.token))
       throw new Error("Choose a supported token.");
     if (["count", "tokenCount"].includes(n.kind) && n.position !== undefined && !["i", "j"].includes(n.position))
@@ -80,6 +88,7 @@ export function validateProgram(nodes, alphabet = DEFAULT_ALPHABET) {
   return true;
 }
 export function expression(n) {
+  if (n.tree) return printExpression(n.tree);
   switch (n.kind) {
     case "token":
       return JSON.stringify(n.token);

@@ -1,50 +1,105 @@
-// Keep the canonical manuscript intact, presented as optional background topics.
+// Build a chapter overview from the canonical shared manuscript.
 const article = document.getElementById('article');
+const chapters = [];
 let body;
 for (const node of [...article.childNodes]) {
   if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'H2') {
     const topic = document.createElement('details');
     topic.className = 'background-topic';
+    const title = node.textContent.trim();
+    topic.id = `chapter-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
     const summary = document.createElement('summary');
-    summary.textContent = node.textContent;
     body = document.createElement('div');
     body.className = 'background-body';
     topic.append(summary, body);
     article.insertBefore(topic, node);
+    chapters.push({ topic, summary, body, title });
     // Preserve heading targets so internal cross-references keep working.
     node.hidden = true;
   }
   if (body) body.append(node);
 }
+function chapterText(className, text) {
+  const element = document.createElement('span');
+  element.className = className;
+  element.textContent = text;
+  return element;
+}
+for (const [index, chapter] of chapters.entries()) {
+  const { topic, summary, body, title } = chapter;
+  const number = chapterText('chapter-number', String(index + 1).padStart(2, '0'));
+  number.setAttribute('aria-hidden', 'true');
+  const toggle = chapterText('chapter-toggle', '+');
+  toggle.setAttribute('aria-hidden', 'true');
+  summary.append(number, chapterText('chapter-title', title), toggle);
+  const lead = body.querySelector('.chapter-lead');
+  if (lead) summary.append(chapterText('chapter-description', lead.textContent.trim()));
+  const sections = [...body.querySelectorAll('h3')];
+  if (sections.length) {
+    const preview = chapterText('chapter-contents', '');
+    sections.slice(0, 3).forEach(section => preview.append(chapterText('chapter-tag', section.textContent.trim())));
+    if (sections.length > 3) preview.append(chapterText('chapter-more', `+${sections.length - 3} topics`));
+    summary.append(preview);
+    const navigation = document.createElement('nav');
+    navigation.className = 'chapter-navigation';
+    navigation.setAttribute('aria-label', `${title}: sections`);
+    const label = document.createElement('p');
+    label.textContent = 'In this chapter';
+    const links = document.createElement('ul');
+    sections.forEach((section, sectionIndex) => {
+      if (!section.id) section.id = `${topic.id}-section-${sectionIndex + 1}`;
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = `#${section.id}`;
+      link.textContent = section.textContent.trim();
+      item.append(link);
+      links.append(item);
+    });
+    navigation.append(label, links);
+    body.prepend(navigation);
+  }
+  topic.addEventListener('toggle', () => {
+    toggle.textContent = topic.open ? '−' : '+';
+    updateOverviewState();
+  });
+  summary.addEventListener('click', () => {
+    if (!topic.open) requestAnimationFrame(() => {
+      updateOverviewState();
+      summary.scrollIntoView({ block: 'start' });
+    });
+  });
+}
+const overviewButton = document.getElementById('background-toggle-all');
+document.getElementById('chapter-count').textContent = `${chapters.length} chapters`;
+function updateOverviewState() {
+  const expanded = chapters.some(({ topic }) => topic.open);
+  overviewButton.textContent = expanded ? 'Back to overview' : 'Expand all';
+  overviewButton.setAttribute('aria-expanded', String(expanded));
+}
+overviewButton.addEventListener('click', () => {
+  const expand = !chapters.some(({ topic }) => topic.open);
+  chapters.forEach(({ topic }) => { topic.open = expand; });
+  updateOverviewState();
+  if (!expand) {
+    history.replaceState(null, '', '#background');
+    document.getElementById('background-title').scrollIntoView({ block: 'start' });
+  }
+});
+updateOverviewState();
 function revealFragment() {
   let id;
   try { id = decodeURIComponent(location.hash.slice(1)); } catch { return; }
   const target = document.getElementById(id);
   if (!target) return;
+  if (id === 'background') chapters.forEach(({ topic }) => { topic.open = false; });
   for (let p = target; p; p = p.parentElement) if (p.tagName === 'DETAILS') p.open = true;
-  (target.hidden ? target.parentElement : target).scrollIntoView({ block: 'start' });
+  updateOverviewState();
+  const visibleTarget = target.hidden ? target.closest('.background-topic')?.querySelector('summary') || target.parentElement : target;
+  visibleTarget.scrollIntoView({ block: 'start' });
 }
 addEventListener('hashchange', revealFragment);
 revealFragment();
 const frame = document.getElementById('lab-frame');
-const editorFrame = document.getElementById('editor-frame');
-const modeButtons = [...document.querySelectorAll('[data-lab-mode]')];
-let pendingMode = 'walk';
-function selectMode(mode) {
-  pendingMode = mode;
-  const editing = mode === 'editor';
-  frame.hidden = editing;
-  editorFrame.hidden = !editing;
-  if (editing) {
-    if (!editorFrame.getAttribute('src')) editorFrame.src = editorFrame.dataset.src;
-  } else {
-    const doc = frame.contentDocument;
-    if (doc?.documentElement.dataset.labMode !== mode) doc?.querySelector(`[data-mode="${mode}"]`)?.click();
-    if (doc) doc.documentElement.dataset.labMode = mode;
-  }
-  modeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.labMode === mode)));
-}
-modeButtons.forEach(button => button.addEventListener('click', () => selectMode(button.dataset.labMode)));
 function sizeFrame(target, element) {
   const resize = () => {
     if (target.hidden) return;
@@ -56,23 +111,17 @@ function sizeFrame(target, element) {
 }
 function prepareFrame() {
   const doc = frame.contentDocument;
-  if (!doc || !doc.getElementById('mode-nav') || doc.getElementById('lab-embed-style')) return;
+  const shell = doc?.querySelector('.notebook-shell');
+  if (!shell || doc.getElementById('lab-embed-style')) return;
   const style = doc.createElement('style');
   style.id = 'lab-embed-style';
   style.textContent = `body.notebook-page{min-width:0;margin:0;background:#fff}
-    body>header,.skip,.notebook-intro,.design-notes,.mode-nav{display:none!important}
-    .notebook-shell{width:100%;max-width:none;margin:0;padding:16px}
-    .experiment{padding:8px;border:0;margin:0}.experiment-heading h2{font-size:1.5rem}
-    #mode-kicker,#mode-title,#reset-design,.mode-description,.runtime-bar,
-    #toggle-code,.code-actions+p,#result-intro,#input-area .small,.drag-help,
-    #mode-workspace>.toolbar>button:nth-child(2){display:none!important}
-    .experiment-heading{display:none}
-    .code-actions{margin-top:16px}
-    html[data-lab-mode=walk] .code-actions{display:none}
-    html[data-lab-mode=build] #result-heading{display:none}
-    #mode-workspace>.toolbar{margin-bottom:16px}
-    .result-header{margin-top:12px}
-    @media(max-width:550px){.notebook-shell{padding:10px}.experiment-heading{flex-wrap:wrap}}`;
+    html[data-embed] .notebook-shell{width:100%;max-width:none;margin:0;padding:12px}
+    html[data-embed] .experiment{padding:0;border:0;margin:0}
+    .experiment-heading,.mode-description,.runtime-bar,.code-actions,
+    .code-actions+p,#result-intro{display:none!important}
+    .result-header{margin-top:0}
+    @media(max-width:550px){html[data-embed] .notebook-shell{padding:8px}}`;
   doc.head.append(style);
   const status = doc.getElementById('runtime-status');
   const statusBar = status.closest('.runtime-bar');
@@ -82,48 +131,9 @@ function prepareFrame() {
   };
   new MutationObserver(updateStatus).observe(status, {childList: true, characterData: true, subtree: true});
   updateStatus();
-  if (pendingMode !== 'editor') selectMode(pendingMode);
-  sizeFrame(frame, doc.querySelector('.notebook-shell'));
-  const editorButton = doc.getElementById('open-editor');
-  if (editorButton) editorButton.textContent = 'Edit this program →';
-  if (editorButton) editorButton.onclick = () => {
-    const source = doc.getElementById('source-code').textContent;
-    const tokens = [...doc.querySelectorAll('#input-area [data-position]')]
-      .map(x => x.getAttribute('aria-label').match(/token (.+) at position/)[1]).join(' ');
-    const url = new URL(editorFrame.dataset.src, location.href);
-    url.hash = 'program=' + encodeURIComponent(JSON.stringify({ source, tokens }));
-    editorFrame.src = url.href;
-    selectMode('editor');
-  };
-}
-function prepareEditor() {
-  const doc = editorFrame.contentDocument;
-  if (!doc?.getElementById('program') || doc.getElementById('lab-editor-style')) return;
-  const style = doc.createElement('style');
-  style.id = 'lab-editor-style';
-  style.textContent = `body{margin:0;background:white;min-width:0}
-    body>header,footer,#playground>.section-number,#playground>h2,#playground>p,#playground>.explanation{display:none!important}
-    body>main{width:100%;max-width:none!important;padding:16px!important}
-    #playground{padding:0;border:0}.lab{margin:0}.code-grid{grid-template-columns:1fr}
-    .lab-body{padding:16px}textarea{min-height:240px}
-    .lab-head,#share,#download-trace,#reset,#example-guide,
-    [aria-label="Suggested inputs"],.code-grid>div:nth-child(2),
-    .trace-nav,#row-explanation,#cell-note,.lab-body>h3,.lab-body>h3+p{display:none!important}
-    @media(max-width:550px){body>main{padding:8px!important}.lab-body{padding:8px}}`;
-  doc.head.append(style);
-  const status = doc.getElementById('engine-status');
-  const conciseStatus = () => {
-    const text = status.textContent;
-    if (text.startsWith('Showing a saved trace')) status.textContent = 'Example output. Run to evaluate your edits.';
-    else if (text === 'Evaluated by the pinned Python interpreter.') status.textContent = 'Run complete.';
-    else if (text.startsWith('Loading Python')) status.textContent = 'Loading interpreter…';
-  };
-  new MutationObserver(conciseStatus).observe(status, {childList: true, characterData: true, subtree: true});
-  conciseStatus();
-  sizeFrame(editorFrame, doc.querySelector('main'));
+  sizeFrame(frame, shell);
 }
 frame.addEventListener('load', prepareFrame);
-editorFrame.addEventListener('load', prepareEditor);
 if (frame.contentDocument?.readyState === 'complete') prepareFrame();
 addEventListener('beforeprint', () => document.querySelectorAll('details').forEach(d => {
   d.dataset.printOpen = String(d.open); d.open = true;
